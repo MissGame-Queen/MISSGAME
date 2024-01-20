@@ -1,0 +1,252 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>上傳檔案到SPIFFS</title>
+    <style type='text/css'>
+        body {
+            font-family: '微軟正黑體', '黑體-繁', sans-serif;
+        }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+</head>
+
+<body>
+    <h1>上傳檔案</h1>
+    <form method='post' enctype='multipart/form-data' action='/upload'>
+        <input type='file' name='filename'>
+        <input type='submit' value='上傳檔案'>
+    </form>
+    <form method='get' action='/edit'>
+        <input type='submit' value='檔案編輯'>
+    </form>
+    <h1>上傳韌體</h1>
+    <form id="uploadForm" method='post' enctype='multipart/form-data' action='/firmwareupload'>
+      <input type='file' name='firmware' id='fileInput'>
+      <button type='button' onclick='uploadFile()'>上傳韌體</button>
+    </form>
+    <h1>上傳配置檔</h1>
+    <form method='post' enctype='multipart/form-data' action='/spiffsupload'>
+        <input type='file' name='filename'>
+        <input type='submit' value='上傳韌體'>
+    </form>
+    <h1>WIFI設定</h1>
+    <label>WIFI_MODE: <span id='WIFI_MODE'>{WIFI_MODE}</span></label><br>
+    <label>SSID: <span id='SSID'>{SSID}</span></label><br>
+    <label>IP: <span id='IP'>{LOCALIP}</span></label><br>
+    <label>RSSI: <span id='RSSI'>{RSSI}</span> <i>dBm</i></label><br>
+    <label>可用網路清單:</label>
+    <select name='networkList' id='networkList' style='margin-left: 10px;'>
+
+
+        <!-- 這裡會由JavaScript填充選項 -->
+    </select>
+    <br>
+    <form method='get' action='/WIFI_Search' style='display: inline-block;'>
+        <input type='submit' onclick="refresh()" value='WIFI刷新'>
+    </form>
+    <input type='submit' onclick="connect()" value='連線到此WIFI'>
+    <br>
+    <div style='display: inline-block;'>
+        <form method='get' action='/getTH'>
+            <input type='submit' value='溫溼度監看'>
+        </form>
+        <form method='get' action='/getCMD' style='display: inline-block;'>
+            <input type='submit' value='指令表'>
+        </form>
+        <form method='get' action='/restart' style='display: inline-block;'>
+            <input type='submit' value='重新啟動'>
+        </form>
+    </div>
+</body>
+
+<script>
+    function connect() {
+        var selectedNetwork = document.getElementById('networkList').value;
+        if (selectedNetwork === "") {
+            alert("請選擇一個Wi-Fi網絡");
+            return;
+        }
+        Swal.fire({
+            title: '請輸入密碼',
+            input: 'password',
+            inputAttributes: {
+                autocapitalize: 'off'
+            },
+
+            showCancelButton: true,
+            confirmButtonText: '提交',
+            showLoaderOnConfirm: true,
+            preConfirm: (password) => {
+                return new Promise((resolve, reject) => {
+                    if (password) {
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("POST", "/WIFI_Connect");
+                        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                        xhr.onload = function () {
+                            if (xhr.status === 200) {
+                                resolve(xhr.responseText);
+                            } else {
+                                resolve(-2);
+                                reject("請求失敗: " + xhr.status);
+                            }
+                        };
+                        xhr.send("network=" + encodeURIComponent(selectedNetwork) + "&password=" + encodeURIComponent(password));
+                    } else {
+                        resolve(-1);
+                        reject('請輸入密碼');//確定有被執行
+                    }
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        })
+            .then((result) => {
+                if (result.value == -1)
+                    Swal.fire('錯誤', "請輸入密碼", 'error');
+                else if (result.value == -2)
+                    Swal.fire('錯誤', "請求失敗", 'error');
+                else if (result.isConfirmed) {
+                    Swal.fire('成功', '連線成功，新IP為: ' + result.value, 'success');
+                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                    Swal.fire('已取消', '取消連線', 'info');
+                }
+            })
+            .catch((error) => {
+                Swal.fire('錯誤', "error.message", 'error');
+            });
+    }
+    function refresh() {
+        event.preventDefault(); // 阻止默认表单提交行为
+        Swal.showLoading(); // 显示加载动画
+        $.ajax({
+            url: '/WIFI_Search',
+            type: 'GET',
+            dataType: 'json',
+            beforeSend: function () {
+                Swal.fire({
+                    title: '搜尋附近WiFi中...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            },
+            success: function (data) {
+                Swal.close();
+                $('#WIFI_MODE').text(data.WIFI_MODE);
+                $('#SSID').text(data.SSID);
+                $('#IP').text(data.IP);
+                $('#RSSI').text(data.RSSI);
+                var networkList = data.networkList;
+                var select = $('#networkList');
+                select.empty();
+
+                var uniqueNetworks = [];
+                for (var i = 0; i < networkList.length; i++) {
+                    var network = networkList[i].trim();
+                    if (network !== "" && !uniqueNetworks.includes(network)) {
+                        uniqueNetworks.push(network);
+                    }
+                }
+
+                for (var j = 0; j < uniqueNetworks.length; j++) {
+                    var option = $('<option>').text(uniqueNetworks[j]);
+                    select.append(option);
+                }
+                Swal.close();
+            },
+            error: function (xhr, status, error) {
+                Swal.close();
+                Swal.fire('錯誤', '請求失敗', 'error');
+                console.log('請求失敗:', error);
+            },
+            complete: function () {
+                Swal.close();
+            }
+        });
+
+
+    }
+    function uploadFile() {
+        var fileInput = document.getElementById('fileInput');
+        // 檢查是否有選擇檔案
+        if (!fileInput.files.length) {
+            // 顯示提醒視窗
+            Swal.fire({
+                icon: 'warning',
+                title: '提醒',
+                text: '請選擇要上傳的檔案！'
+            });
+            return;
+        }
+        // 取得表單元素
+        var form = document.getElementById('uploadForm');
+
+        // 建立 FormData 物件，並將表單數據附加到其中
+        var formData = new FormData(form);
+        Swal.fire({
+                    title: '搜尋附近WiFi中...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+        // 顯示 Swal 轉圈畫面
+        Swal.fire({
+            title: '更新韌體中',
+            html: '請稍候...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                        Swal.showLoading();
+                    },
+            onBeforeOpen: () => {
+                // 使用 Fetch API 進行異步請求
+                fetch('/firmwareupload', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        // 關閉 Swal
+                        Swal.close();
+                        // 檢查伺服器回應
+                        if (data && data.status === 'OK') {
+                            // 顯示成功訊息
+                            Swal.fire({
+                                icon: 'success',
+                                title: '成功',
+                                text: '韌體更新成功！'
+                            });
+                        } else {
+                            // 顯示失敗訊息
+                            Swal.fire({
+                                icon: 'error',
+                                title: '失敗',
+                                text: '韌體更新失敗！'
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        // 關閉 Swal
+                        Swal.close();
+
+                        // 顯示錯誤訊息
+                        Swal.fire({
+                            icon: 'error',
+                            title: '錯誤',
+                            text: '發生錯誤：' + error.message
+                        });
+                    });
+            }
+        });
+    }
+</script>
+
+</html>

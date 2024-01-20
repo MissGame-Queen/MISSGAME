@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寄存器讀寫</title>
+    <style>
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        #username[readonly] {
+            color: red;
+            background-color: lightgray;
+        }
+
+        input::placeholder {
+            font-style: italic;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+</head>
+
+<body>
+
+    <button onclick="requestData()">请求JSON</button>
+    <button onclick="setRegisters()">大量寫入</button>
+    <button onclick="saveRegisters()">大量儲存</button>
+    <div id="formContainer" style="width: 400px;"></div>
+
+    <script>
+        //var urlTest = "192.168.15.12";
+        var urlTest = "";
+        function requestData() {
+            let host;
+            host = (urlTest != "" ? urlTest :
+                window.location.host);
+
+            const apiUrl = `http://${host}/getCMD?JS`;
+
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    generateForm(data);
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                });
+        }
+
+        function generateForm(jsonData) {
+            // console.log(jsonData);
+            const formContainer = document.getElementById('formContainer');
+            formContainer.innerHTML = ''; // 清空之前的内容
+
+            for (const key in jsonData) {
+                if (jsonData.hasOwnProperty(key)) {
+                    const value = jsonData[key];
+                    if (value === null) continue;
+                    const rowContainer = document.createElement('div'); {
+                        // 创建上部分容器
+                        const upperContainer = document.createElement('div');
+                        upperContainer.style.display = 'flex';
+                        upperContainer.style.justifyContent = 'space-between'; // 靠左对齐 
+                        upperContainer.style.alignItems = 'center'; // 垂直居中
+                        var button = document.createElement('button');
+                        button.id = key;
+                        button.textContent = key;
+                        button.title = value['Description'];//載入描述
+                        //button.style.width= "90%";
+                        if (value.hasOwnProperty('Limit') && (value["Limit"].includes('W') || value["Limit"].includes('w')))
+                            button.disabled = true;//如果禁寫入則失能
+                        else {//否則添加按钮点击事件监听器
+                            button.addEventListener('click', function () {
+                                setRegister(key);
+                            });
+                        }
+                        upperContainer.appendChild(button);
+                        const upperrigthContainer = document.createElement('div');
+                        upperrigthContainer.style.display = 'flex';
+                        upperrigthContainer.style.justifyContent = 'flex-end'; // 靠左对齐 
+                        upperrigthContainer.style.alignItems = 'center'; // 垂直居中
+
+
+                        var checkboxButton_label1 = document.createElement('label');
+
+                        checkboxButton_label1.textContent = "寫入";
+
+                        // 创建多选勾（button）
+                        const checkboxButton1 = document.createElement('input');
+                        checkboxButton1.type = "checkbox";
+                        checkboxButton1.id = key + '_checkboxWrite';
+                        checkboxButton_label1.appendChild(checkboxButton1);
+                        upperrigthContainer.appendChild(checkboxButton_label1);
+
+                        var checkboxButton_label2 = document.createElement('label');
+
+                        checkboxButton_label2.textContent = "存檔";
+
+                        // 创建多选勾（button）
+                        const checkboxButton2 = document.createElement('input');
+                        checkboxButton2.type = "checkbox";
+                        checkboxButton2.id = key + '_checkboxSave';
+                        if (value.hasOwnProperty('Limit') && (value["Limit"].includes('W') || value["Limit"].includes('w'))) {
+                            checkboxButton1.disabled = true;
+                            checkboxButton2.disabled = true;
+                        }
+                        else if (value.hasOwnProperty('Limit') && (value["Limit"].includes('S') || value["Limit"].includes('s')))
+                            checkboxButton2.disabled = true;
+                        checkboxButton_label2.appendChild(checkboxButton2);
+                        upperrigthContainer.appendChild(checkboxButton_label2);
+                        upperContainer.appendChild(upperrigthContainer);
+                        rowContainer.appendChild(upperContainer);
+                    }
+
+                    // 创建Input
+                    const input = document.createElement('input');
+                    input.id = key + '_input';
+                    if (value.hasOwnProperty('Type') && value['Type'] !== "") {
+                        input.type = value['Type'];
+                    }
+                    else {
+                        input.type = "number";
+                    }
+                    if (value.hasOwnProperty('Limit') && (value["Limit"].includes('R') || value["Limit"].includes('r')));
+                    else {
+                        input.placeholder = value['Default']; // 将JSON数据中的值设置为Input的默认值
+                        input.title = value['Default'];//載入默認值
+                    }
+                    if (value.hasOwnProperty('Limit') && (value["Limit"].includes('W') || value["Limit"].includes('w')))
+                        input.readOnly = true;
+
+                    input.value = value["Value"];
+
+                    rowContainer.appendChild(input);
+                    // 设置rowContainer的样式为flex，让其子元素在不同的行上显示
+                    rowContainer.style.display = 'flex';
+                    rowContainer.style.flexDirection = 'column'; // 将子元素垂直排列
+                    // 将rowContainer添加到formContainer
+                    formContainer.appendChild(rowContainer);
+                }
+            }
+        }
+        function setRegister(key) {
+            let host;
+            host = (urlTest != "" ? urlTest :
+                window.location.host);
+            const apiUrl = `http://${host}/POSTJson`;
+            let obj = {};
+            obj[key] = {};
+            if (document.getElementById(key + '_input').type == "number")
+                obj[key]["Function"] = parseInt(document.getElementById(key + '_input').value);
+            else
+                obj[key]["Function"] = document.getElementById(key + '_input').value;
+            console.log(obj);
+            fetch(apiUrl, {
+                method: 'POST',
+
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 如果需要在请求头中添加其他信息，可以在这里添加
+                },
+                body: JSON.stringify(obj),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    //generateForm(data);
+                    Swal.fire('執行成功!', '', 'success'); // 成功提示框
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    Swal.fire({
+                        icon: 'error',//圖標
+                        title: '執行失敗',//標題
+                        text: error,//內容
+                    });
+                });
+        }
+        function setRegisters() {
+            // 获取包含按钮的 div 元素
+            var formContainer = document.getElementById("formContainer");
+
+            // 获取 div 内所有的按钮元素
+            var buttons = formContainer.getElementsByTagName("button");
+            let obj = {};
+            // 遍历按钮并输出它们的 ID
+            for (var i = 0; i < buttons.length; i++) {
+                let key = buttons[i].id
+                checkbox = document.getElementById(key + '_checkboxWrite');
+                if (checkbox.checked) {
+                    obj[key] = {};
+                    var inputValue = document.getElementById(key + '_input').value;
+                    var numericValue = parseInt(inputValue, 10); // 转换为整数，第二个参数是进制
+                    var floatValue = parseFloat(inputValue);
+
+                    // 检查转换后的值是否为有效的数字
+                    if (!isNaN(numericValue)) {
+                        obj[key]["Value"] = numericValue;
+                    }
+                    else if (!isNaN(floatValue)) {
+                        obj[key]["Value"] = floatValue;
+                    }
+                    else {
+                        obj[key]["Value"] = inputValue;
+                    }
+                }
+            }
+            let host;
+            host = (urlTest != "" ? urlTest :
+                window.location.host);
+            const apiUrl = `http://${host}/POSTJson`;
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 如果需要在请求头中添加其他信息，可以在这里添加
+                },
+                body: JSON.stringify(obj),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    //generateForm(data);
+                    Swal.fire('大量寫入成功!', '', 'success'); // 成功提示框
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    Swal.fire({
+                        icon: 'error',//圖標
+                        title: '寫入失敗',//標題
+                        text: error,//內容
+                    });
+                });
+        }
+        function saveRegisters() {
+            // 获取包含按钮的 div 元素
+            var formContainer = document.getElementById("formContainer");
+
+            // 获取 div 内所有的按钮元素
+            var buttons = formContainer.getElementsByTagName("button");
+            let obj = {};
+            // 遍历按钮并输出它们的 ID
+            for (var i = 0; i < buttons.length; i++) {
+                let key = buttons[i].id
+                checkbox = document.getElementById(key + '_checkboxSave');
+                if (checkbox.checked) {
+                    obj[key] = {};
+                    var inputValue = document.getElementById(key + '_input').value;
+                    var numericValue = parseInt(inputValue, 10); // 转换为整数，第二个参数是进制
+                    var floatValue = parseFloat(inputValue);
+
+                    // 检查转换后的值是否为有效的数字
+                    if (!isNaN(numericValue)) {
+                        obj[key]["Save"] = numericValue;
+                    }
+                    else if (!isNaN(floatValue)) {
+                        obj[key]["Save"] = floatValue;
+                    }
+                    else {
+                        obj[key]["Save"] = inputValue;
+                    }
+                }
+            }
+            let host;
+            host = (urlTest != "" ? urlTest :
+                window.location.host);
+            const apiUrl = `http://${host}/POSTJson`;
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 如果需要在请求头中添加其他信息，可以在这里添加
+                },
+                body: JSON.stringify(obj),
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    //generateForm(data);
+                    Swal.fire('大量儲存成功!', '', 'success'); // 成功提示框
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    Swal.fire({
+                        icon: 'error',//圖標
+                        title: '寫入失敗',//標題
+                        text: error,//內容
+                    });
+                });
+        }
+    </script>
+
+</body>
+
+</html>

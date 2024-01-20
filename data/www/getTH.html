@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+   <meta charset="UTF-8" />
+   <title>線上即時溫濕度檢測</title>
+   <style>
+      h1 {
+         font-size: 72px;
+         margin: 10px 0;
+      }
+
+      h2 {
+         margin-bottom: 10px;
+      }
+
+      .info {
+         display: flex;
+         justify-content: space-between;
+         margin-bottom: 5px;
+      }
+
+      table {
+         border-collapse: collapse;
+      }
+
+      th,
+      td {
+         border: 1px solid black;
+         padding: 8px;
+      }
+
+      th {
+         background-color: #f2f2f2;
+      }
+
+      .title {
+         width: 18%;
+         font-size: 11pt;
+         text-align: right;
+         vertical-align: middle;
+      }
+
+      .data {
+         width: 10%;
+         font-size: 12pt;
+         text-align: left;
+         vertical-align: middle;
+      }
+
+      .dataLong {
+         width: 32%;
+         font-size: 12pt;
+         text-align: left;
+         vertical-align: middle;
+      }
+
+      .italic-small {
+         width: 22%;
+         font-style: italic;
+         font-size: 8pt;
+         vertical-align: middle;
+      }
+
+      .cellDate {
+         background-color: rgb(253, 233, 217);
+         width: 54px;
+         height: 1mm;
+      }
+
+      .cellTem {
+         background-color: rgb(235, 241, 222);
+         width: 27px;
+      }
+
+      .cellHum {
+         background-color: rgb(228, 223, 236);
+         width: 27px;
+      }
+
+      .cellInput {
+         width: 100%;
+         height: 100%;
+         background-color: transparent;
+         border: none;
+         padding: 0;
+      }
+
+      .cellMaxLimit {
+
+         color: red;
+         font-weight: bold;
+         font-style: italic;
+      }
+
+      .cellMinLimit {
+
+         color: rgb(255, 192, 0);
+         font-weight: bold;
+         font-style: italic;
+      }
+
+      @page {
+         size: A4;
+      }
+
+      @media print {
+         #page-to-delete {
+            display: none;
+         }
+      }
+
+      @media print {
+         body {
+            font-size: 12px;
+         }
+      }
+
+      .page-break {
+         page-break-before: always;
+      }
+
+      .printPage {
+         width: 210mm;
+         margin: 0;
+         padding: 1mm;
+         /* 设置页边距 */
+         box-sizing: border-box;
+      }
+   </style>
+   <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+   <script src="https://code.highcharts.com/highcharts.js"></script>
+
+</head>
+
+<body>
+   <div id="page-to-delete">
+      <h1>時間: <span id="time">{TIME}</h1></span>
+      <h1>地點: <span id="location">{LOCATION}</h1></span>
+      <h1>溫度: <span id="temperature">{TEMPERATURE}</h1></span>
+      <h1>濕度: <span id="humidity">{HUMIDITY}</h1></span>
+      <input type="button" value="刷新畫面" onclick="load(true) " style="width: 300px;height: 100px;font-size: 24px;">
+      <input type="button" value="讀取數據" onclick="load(false)" style="width: 300px;height: 100px;font-size: 24px">
+      <div class="page-break"></div>
+   </div>
+
+   <div class="printPage">
+      <h1 style="text-align: center;font-size: 36pt;"><B>通泰工業社</B></h1>
+      <h1 style="text-align: center;font-size: 24pt;"><B>溫溼度紀錄表</B></h1>
+      <h2>設備設置</h2>
+      <table>
+         <tr>
+            <td class="title">紀錄間隔 :</td>
+            <td class="data" id="IntervalTime">60</td>
+            <td class="italic-small"> (分鐘)</td>
+            <td class="title">資料來源:</td>
+            <td><input type="text" class="data" value="" id="mdnsname" style="width: 90%;"></td>
+            <td class="italic-small"> 連結用，空白表示來自自身</td>
+         </tr>
+         <tr>
+            <td class="title">溫度上限 :</td>
+            <td><input type="text" id="SetMaxTemperature" class="data" value="25.0" style="width: 90%;"></td>
+            <td class="italic-small">°C</td>
+            <td class="title">濕度上限 :</td>
+            <td><input type="text" id="SetMaxHumidity" class="data" value="20.0" style="width: 90%;"></td>
+            <td class="italic-small">%</td>
+         </tr>
+         <tr>
+            <td class="title">溫度下限 :</td>
+            <td><input type="text" id="SetMinTemperature" class="data" value="16.0" style="width: 90%;"></td>
+            <td class="italic-small">°C</td>
+            <td class="title">濕度下限 :</td>
+            <td><input type="text" id="SetMinHumidity" class="data" value="5.0" style="width: 90%;"></td>
+            <td class="italic-small">%</td>
+         </tr>
+      </table>
+      <h2>資料資訊</h2>
+      <table>
+         <tr>
+            <td class="title">開始日期時間 :</td>
+            <td colspan="2"><input type="datetime-local" id="StartDateTime" class="data" style="width: 90%;"></td>
+            <td class="title">結束日期時間 :</td>
+            <td colspan="2"><input type="datetime-local" id="EndDateTime" class="data" style="width: 90%;"></td>
+         </tr>
+         <tr>
+            <td class="title">資料筆數 :</td>
+            <td class="data" id="DataLength">0</td>
+            <td class="italic-small"></td>
+            <td class="title">超標筆數 :</td>
+            <td class="data" id="ExceededDataLength">0</td>
+            <td class="italic-small"></td>
+         </tr>
+         <tr>
+            <td class="title">累計時數 :</td>
+            <td class="data" id=TotalTime>0:0:0 </td>
+            <td class="italic-small">(天:時:分)(#結束時間-開始時間)</td>
+            <td class="title">累計超標時數 :</td>
+            <td class="data" id="ExceededTotalTime">0:0:0 </td>
+            <td class="italic-small">(天:時:分)(#超標筆數*紀錄間隔)</td>
+         </tr>
+         <tr>
+            <td class="title">最高溫度 :</td>
+            <td class="data" id="MaxTemperature">0.0°C</td>
+            <td class="italic-small"></td>
+
+            <td class="title">最高濕度 :</td>
+            <td class="data" id="MaxHumidity">0.0%</td>
+            <td class="italic-small"></td>
+         </tr>
+         <tr>
+            <td class="title">最低溫度 :</td>
+            <td class="data" id="MinTemperature">0.0°C</td>
+            <td class="italic-small"></td>
+
+            <td class="title">最低濕度 :</td>
+            <td class="data" id="MinHumidity">0.0%</td>
+            <td class="italic-small"></td>
+         </tr>
+         <tr>
+            <td class="title">平均溫度 :</td>
+            <td class="data" id="AvgTemperature">0.0°C</td>
+            <td class="italic-small"></td>
+
+            <td class="title">平均濕度 :</td>
+            <td class="data" id="AvgHumidity">0.0%</td>
+            <td class="italic-small"></td>
+         </tr>
+         <tr>
+            <td class="title">超高標平均溫度 :</td>
+            <td class="data" id="ExceededMaxTemperature">0.0°C</td>
+            <td class="italic-small"></td>
+
+            <td class="title">超高標平均濕度 :</td>
+            <td class="data" id="ExceededMaxHumidity">0.0%</td>
+            <td class="italic-small"></td>
+
+         </tr>
+         <tr>
+            <td class="title">超低標平均溫度 :</td>
+            <td class="data" id="ExceededMinTemperature">0.0°C</td>
+            <td class="italic-small"></td>
+
+            <td class="title">超低標平均濕度 :</td>
+            <td class="data" id="ExceededMinHumidity">0.0%</td>
+            <td class="italic-small"></td>
+
+         </tr>
+
+      </table>
+      <p></p>
+      <div id="container"></div>
+      <table id="myTable_0"></table>
+   </div>
+
+   <script language="JavaScript">
+      var options = {};
+      var SetMaxTemperature;
+      var SetMinTemperature;
+      var SetMaxHumidity;
+      var SetMinHumidity;
+      var TableRow = 28;
+      var TableColumn = 15;
+      $(document).ready(() => {
+         options = {
+            chart: {
+               renderTo: 'container'
+            },
+            title: {
+               text: '溫溼度曲線圖'
+            },
+            subtitle: {
+               text: '點擊數據點能刷新畫面'
+            },
+            xAxis: {
+               categories: []
+            },
+            yAxis: [{
+               title: {
+                  text: '溫度 (\xB0C)'
+               },
+               plotLines: [{
+                  value: 0,
+                  width: 1,
+                  color: '#808080'
+               }],
+               labels: {
+                  format: '{value} °C' // 設定溫度軸的標籤格式
+               },
+            },
+            {
+               title: {
+                  text: '濕度 (%)'
+               },
+               opposite: true,
+               labels: {
+                  format: '{value} %' // 設定濕度軸的標籤格式
+               }, tooltip: {
+                  shared: false,
+               }
+            }
+            ],
+            tooltip: {
+               shared: true, // 一次顯示多軸資訊
+               //valueSuffix: '\xB0C'
+            },
+            legend: {
+               //itemDistance: 40,
+               layout: 'horizontal',
+               align: 'center',
+               verticalAlign: 'top',
+               borderWidth: 0
+            },
+            series: [
+               {
+                  name: '溫度',
+                  data: [],
+                  type: 'spline',
+                  tooltip: {
+                     valueSuffix: '\xB0C' // 單獨設定溫度曲線的 tooltip 單位為攝氏度
+                  }
+               },
+               {
+                  name: '濕度',
+                  yAxis: 1, // 指定该系列使用第二个 Y 轴
+                  data: [],
+                  type: 'spline',
+                  tooltip: {
+                     valueSuffix: '%' // 單獨設定濕度曲線的 tooltip 單位為百分比
+                  },
+               },
+               {
+                  name: '溫度上限',
+                  data: [],
+                  type: 'spline',
+                  dashStyle: 'ShortDash',
+                  tooltip: {
+                     pointFormat: null  // 禁用该系列的 Tooltip
+                  }
+               },
+               {
+                  name: '溫度下限',
+                  data: [],
+                  type: 'spline',
+                  dashStyle: 'ShortDash',
+                  tooltip: {
+                     pointFormat: null  // 禁用该系列的 Tooltip
+                  }
+               },
+               {
+                  name: '濕度上限',
+                  yAxis: 1, // 指定该系列使用第二个 Y 轴
+                  data: [],
+                  type: 'spline',
+                  dashStyle: 'DashDot',
+                  tooltip: {
+                     pointFormat: null  // 禁用该系列的 Tooltip
+                  }
+               },
+               {
+                  name: '濕度下限',
+                  yAxis: 1, // 指定该系列使用第二个 Y 轴
+                  data: [],
+                  type: 'spline',
+                  dashStyle: 'DashDot',
+                  tooltip: {
+                     pointFormat: null  // 禁用该系列的 Tooltip
+                  }
+               },],
+            plotOptions: {
+               spline: {
+                  lineWidth: 2,
+                  states: {
+                     hover: {
+                        lineWidth: 3
+                     }
+                  },
+                  marker: {
+                     enabled: false
+                  },
+                  shadow: false
+               },
+               series: {
+                  point: {
+                     events: {
+                        click: function () {
+                           load(true);
+                        }
+                     }
+                  }
+               },
+            },
+         }
+
+         let dateNow = new Date(new Date().getTime() + 8 * 1000 * 60 * 60);
+         document.getElementById("EndDateTime").value = dateNow.toISOString().slice(0, 16);
+         document.getElementById("StartDateTime").value = dateNow.toISOString().slice(0, 11) + "00:00";
+         //document.getElementById("mdnsname").value = window.location.host;
+         load(true);
+      });
+
+      function refreshData() {
+         document.getElementById("IntervalTime").textContent =
+            (new Date(options.xAxis.categories[1]).getTime() -
+               new Date(options.xAxis.categories[0]).getTime()) / 60000;
+
+         document.getElementById("DataLength").textContent = options.series[0].data.length;
+         let intExceeded = 0;
+         for (let i = 0; i < options.series[0].data.length; i++) {
+            if (options.series[0].data[i] > SetMaxTemperature ||
+               options.series[0].data[i] < SetMinTemperature ||
+               options.series[1].data[i] > SetMaxHumidity ||
+               options.series[1].data[i] < SetMinHumidity) intExceeded++
+         }
+         document.getElementById("ExceededDataLength").textContent = intExceeded;
+
+         let dateTotal = new Date
+            (new Date(document.getElementById("EndDateTime").value).getTime() -
+               new Date(document.getElementById("StartDateTime").value).getTime());
+         document.getElementById("TotalTime").textContent = dateTotal.getUTCDate() - 1 + ':' + dateTotal.getUTCHours() + ':' + dateTotal.getUTCMinutes();
+         dateTotal = new Date(document.getElementById("ExceededDataLength").textContent * document.getElementById("IntervalTime").textContent * 60 * 1000);
+         document.getElementById("ExceededTotalTime").textContent = dateTotal.getUTCDate() - 1 + ':' + dateTotal.getUTCHours() + ':' + dateTotal.getUTCMinutes();
+         document.getElementById("MaxTemperature").textContent = Math.max(...options.series[0].data);
+         document.getElementById("MinTemperature").textContent = Math.min(...options.series[0].data);
+         document.getElementById("MaxHumidity").textContent = Math.max(...options.series[1].data);
+         document.getElementById("MinHumidity").textContent = Math.min(...options.series[1].data);
+         function calculateAverage(array) {
+            if (array.length === 0) {
+               return 0; // 避免除以零
+            }
+
+            const sum = array.reduce((total, current) => total + current, 0);
+            return (sum / array.length).toFixed(1);
+         }
+         document.getElementById("AvgTemperature").textContent = calculateAverage(options.series[0].data);
+         document.getElementById("AvgHumidity").textContent = calculateAverage(options.series[1].data);
+
+         let valExceeded = 0;
+         intExceeded = 0;
+         for (let j = 0; j < 4; j++) {
+            valExceeded = 0;
+            intExceeded = 0;
+            let valExceed = 0;
+            let arr = [];
+            switch (j) {
+               case 0:
+                  valExceed = SetMaxTemperature;
+                  arr = options.series[0].data;
+                  break;
+               case 1:
+                  valExceed = SetMinTemperature;
+                  arr = options.series[0].data;
+                  break;
+               case 2:
+                  valExceed = SetMaxHumidity;
+                  arr = options.series[1].data;
+                  break;
+               case 3:
+                  valExceed = SetMinHumidity;
+                  arr = options.series[1].data;
+                  break;
+            }
+            for (let i = 0; i < options.series[0].data.length; i++) {
+               if ((arr[i] > valExceed && !(j % 2)) || (arr[i] < valExceed && (j % 2))) {
+                  intExceeded++;
+                  valExceeded += arr[i];
+               }
+            }
+            switch (j) {
+               case 0:
+                  document.getElementById("ExceededMaxTemperature").textContent = (valExceeded / intExceeded).toFixed(1);
+                  break;
+               case 1:
+                  document.getElementById("ExceededMinTemperature").textContent = (valExceeded / intExceeded).toFixed(1);
+                  break;
+               case 2:
+                  document.getElementById("ExceededMaxHumidity").textContent = (valExceeded / intExceeded).toFixed(1);
+                  break;
+               case 3:
+                  document.getElementById("ExceededMinHumidity").textContent = (valExceeded / intExceeded).toFixed(1);
+                  break;
+            }
+
+         }
+         for (let index = 0; index < 5; index++) {
+            // 获取表格元素
+            var table = document.getElementById("myTable_" + index);
+            // 检查表格是否存在
+            if (table) {
+               // 从其父元素中删除表格
+               table.parentNode.removeChild(table);
+            }
+            // 获取表格元素
+            table = document.getElementById("page-break_" + index);
+            // 检查表格是否存在
+            if (table) {
+               // 从其父元素中删除表格
+               table.parentNode.removeChild(table);
+            }
+         }
+         createTable(TableRow, TableColumn, 0);
+      }
+
+      function createTable(rows, columns, iTable) {
+         var valInit = iTable * (rows * columns / 3);
+         var dataLength = valInit;
+         //表頭
+         {
+            // 创建一个新的表格元素
+            var table = document.createElement("table");
+            table.style.maxWidth = "210mm";
+            table.style.fontSize = "80%";
+            var row = document.createElement("tr");
+            var cell = document.createElement("td");
+            cell.classList.add("cellDate");
+            cell.textContent = "時間";
+            row.appendChild(cell);
+
+            cell = document.createElement("td");
+            cell.colSpan = "2";
+            cell.classList.add("cellTem");
+            cell.textContent = "溫度";
+            row.appendChild(cell);
+
+            cell = document.createElement("td");
+            cell.classList.add("cellHum");
+            cell.textContent = "濕度";
+            row.appendChild(cell);
+
+            cell = document.createElement("td");
+            cell.colSpan = "2";
+            cell.style.textAlign = "center";
+            cell.classList.add("cellMaxLimit");
+            cell.textContent = "超高標"
+            row.appendChild(cell);
+
+            cell = document.createElement("td");
+            cell.style.textAlign = "center";
+            cell.classList.add("cellMinLimit");
+            cell.textContent = "超低標"
+            row.appendChild(cell);
+
+            table.appendChild(row);
+         }
+         for (var i = 0; i < rows; i++) {
+            var row = document.createElement("tr");
+            // 创建列
+            for (var j = 0; j < columns && parseInt(i + parseInt(j / 3) * rows) + valInit < options.xAxis.categories.length; j++) {
+               dataLength = parseInt(i + parseInt(j / 3) * rows) + valInit;
+               var cell = document.createElement("td");
+               let value = 0, maxVal = 0, minVal = 0;
+               if (j % 3 == 0) {
+                  cell.classList.add('cellDate');
+                  cell.textContent = options.xAxis.categories[dataLength];
+               }
+               else if (j % 3 == 1) {
+                  cell.classList.add("cellTem");
+                  value = parseFloat(options.series[0].data[dataLength]);
+                  maxVal = SetMaxTemperature;
+                  minVal = SetMinTemperature;
+               }
+               else if (j % 3 == 2) {
+                  cell.classList.add("cellHum");
+                  value = parseFloat(options.series[1].data[dataLength]);
+                  maxVal = SetMaxHumidity;
+                  minVal = SetMinHumidity;
+               }
+               if (j % 3 == 1 || j % 3 == 2) {
+                  var input = document.createElement("input");
+                  input.type = "text";
+                  input.value = value;
+                  input.classList.add("cellInput");
+                  if (value > maxVal) {
+                     input.classList.add("cellMaxLimit");
+                  }
+                  else if (value < minVal) {
+                     input.classList.add("cellMinLimit");
+                  }
+                  cell.appendChild(input);
+               }
+               row.appendChild(cell);
+            }
+
+            table.appendChild(row);
+         }
+
+         // 获取现有表格，如果存在，则替换
+         var existingTable = document.getElementById("myTable_" + iTable);
+         if (existingTable) {
+            // 如果存在，則替換內容
+            //existingTable.innerHTML = table.innerHTML;
+            //existingTable.outerHTML  = table.outerHTML ;
+            // 如果存在，先移除原始表格，然后添加新表格
+            existingTable.parentNode.removeChild(existingTable);
+            table.id = "myTable_" + iTable
+            document.body.appendChild(table);
+         } else {
+            // 如果不存在，則添加新表格
+            table.id = "myTable_" + iTable; // 設定新表格的ID
+            document.body.appendChild(table);
+            // 创建一个新的分页断点元素
+            var pageBreak = document.createElement("div");
+            pageBreak.className = "page-break";
+            pageBreak.id = "page-break_" + iTable;
+            // 添加分页断点到 table 元素之前
+            table.parentNode.insertBefore(pageBreak, table);
+         }
+         //如果不夠顯示再新增表格
+         if ((iTable + 1) * (rows * columns / 3) < options.xAxis.categories.length && iTable < 5) {
+            createTable(rows, columns, iTable + 1);
+         }
+      }
+
+      // 调用createTable函数以生成表格
+
+      function load(isTest) {
+         // 示例數據
+         var exampleData = {
+            時間: [
+               '2023/10/23 08:00', '2023/10/23 09:00', '2023/10/23 10:00', '2023/10/23 11:00', '2023/10/23 12:00',
+               '2023/10/23 13:00', '2023/10/23 14:00', '2023/10/23 15:00', '2023/10/23 16:00', '2023/10/23 17:00',
+               '2023/10/23 08:00', '2023/10/23 09:00', '2023/10/23 10:00', '2023/10/23 11:00', '2023/10/23 12:00',
+               '2023/10/23 13:00', '2023/10/23 14:00', '2023/10/23 15:00', '2023/10/23 16:00', '2023/10/23 17:00'
+            ],
+            溫度: [
+               '20.0°C', '21.5°C', '22.0°C', '23.0°C', '24.5°C',
+               '25.0°C', '24.5°C', '23.0°C', '22.0°C', '21.5°C',
+               '15.0°C', '15.5°C', '26.0°C', '27.0°C', '27.5°C',
+               '28.0°C', '29.5°C', '30.0°C', '14.0°C', '13.5°C'
+            ],
+            濕度: [
+               '20%', '25%', '22%', '23%', '21%',
+               '22%', '23%', '24%', '20%', '21%',
+               '26%', '28%', '23%', '31%', '30%',
+               '29%', '35%', '36%', '22%', '21%'
+            ]
+         };
+         if (isTest) {
+            var tableDataArray = [[], [], []];
+            var coordinate
+            for (var i = 0; i < 5; i++) {
+               var tableName = "myTable_" + i;
+               var table = document.getElementById(tableName);
+
+               if (table) {
+                  var tableData = [];
+                  var rows = table.rows;
+                  for (var j = 1; j < rows.length; j++) {
+                     var cells = rows[j].cells;
+                     for (let iCells = 0; iCells < cells.length; iCells++) {
+                        var input = cells[iCells].querySelector('input[type="text"]');
+                        coordinate = (j - 1) + parseInt(iCells / 3) * TableRow + (i * TableRow * TableColumn / 3);
+                        //tableDataArray[iCells % 3].push(coordinate);
+                        if (input) {
+                           tableDataArray[iCells % 3][coordinate] = (parseFloat(input.value)); // 如果有 input，使用 input 的值
+                        } else {
+                           tableDataArray[iCells % 3][coordinate] = (cells[iCells].textContent); // 否則使用 cell 的文本內容
+                        }
+                     }
+                  }
+               }
+            }
+            options.series[0].data = tableDataArray[1];
+            options.series[1].data = tableDataArray[2];
+            SetMaxTemperature = parseFloat(document.getElementById("SetMaxTemperature").value);
+            SetMinTemperature = parseFloat(document.getElementById("SetMinTemperature").value);
+            SetMaxHumidity = parseFloat(document.getElementById("SetMaxHumidity").value);
+            SetMinHumidity = parseFloat(document.getElementById("SetMinHumidity").value);
+
+            options.series[2].data = options.series[2].data.map(function (index) {
+               return SetMaxTemperature;
+            });
+            options.series[3].data = options.series[3].data.map(function (index) {
+               return SetMinTemperature;
+            });
+            options.series[4].data = options.series[4].data.map(function (index) {
+               return SetMaxHumidity;
+            });
+            options.series[5].data = options.series[5].data.map(function (index) {
+               return SetMinHumidity;
+            });
+            $('#container').highcharts(options);
+            refreshData();
+         }
+         else {
+            const host = (document.getElementById("mdnsname").value !== "" ? document.getElementById("mdnsname").value : window.location.host);
+            const startDateTime = document.getElementById("StartDateTime").value;
+            const endDateTime = document.getElementById("EndDateTime").value;
+            const url = `http://${host}/getTH?JS=${endDateTime}~${startDateTime}`;
+            //let url = "http://" +  + "/getTH?JS=" + document.getElementById("EndDateTime").value + "~" + document.getElementById("StartDateTime").value
+            $.get(url, function (idataIn) {
+               var data = JSON.parse(idataIn);
+               if (data["時間"].length === 0) {
+                  console.log("陣列長度為0!");
+                  return;
+               }
+               console.log("讀取到的資料!");
+               console.log(data);
+               // 創建新數據陣列，將時間、溫度和濕度合併成對象
+               var afterdata = data["時間"].map(function (item, index) {
+                  return {
+                     "時間": data["時間"][index],
+                     "溫度": data["溫度"][index],
+                     "濕度": data["濕度"][index]
+                  };
+               });
+               // 根據時間升序排序新數據陣列
+               afterdata.sort(function (a, b) {
+                  return new Date(a['時間']).getTime() - new Date(b['時間']).getTime();
+               });
+
+               document.getElementById("time").textContent = data["配置"]["TIME"];
+               document.getElementById("location").textContent = data["配置"]["LOCATION"];
+               document.getElementById("temperature").textContent = data["配置"]["TEMPERATURE"];
+               document.getElementById("humidity").textContent = data["配置"]["HUMIDITY"];
+               data["配置"]["WIFI_MDNSNAME"] == null ? "" :
+                  data["配置"]["SETMAXTEMPERATURE"] == null ? "" : document.getElementById("SetMaxTemperature").value = data["配置"]["SETMAXTEMPERATURE"];
+               data["配置"]["SETMINTEMPERATURE"] == null ? "" : document.getElementById("SetMinTemperature").value = data["配置"]["SETMINTEMPERATURE"];
+               data["配置"]["SETMAXHUMIDITY"] == null ? "" : document.getElementById("SetMaxHumidity").value = data["配置"]["SETMAXHUMIDITY"];
+               data["配置"]["SETMINHUMIDITY"] == null ? "" : document.getElementById("SetMinHumidity").value = data["配置"]["SETMINHUMIDITY"];
+               SetMaxTemperature = parseFloat(document.getElementById("SetMaxTemperature").value);
+               SetMinTemperature = parseFloat(document.getElementById("SetMinTemperature").value);
+               SetMaxHumidity = parseFloat(document.getElementById("SetMaxHumidity").value);
+               SetMinHumidity = parseFloat(document.getElementById("SetMinHumidity").value);
+               // 更新原始數據陣列
+               options.xAxis.categories = afterdata.map(function (item) {
+                  return item["時間"];
+               });
+               options.series[0].data = afterdata.map(function (item) {
+                  return parseFloat(item["溫度"]);
+               });
+               options.series[1].data = afterdata.map(function (item) {
+                  return parseFloat(item["濕度"]);
+               });
+               options.series[2].data = afterdata.map(function (item) {
+                  return parseFloat(SetMaxTemperature);
+               });
+               options.series[3].data = afterdata.map(function (item) {
+                  return parseFloat(SetMinTemperature);
+               });
+               options.series[4].data = afterdata.map(function (item) {
+                  return parseFloat(SetMaxHumidity);
+               });
+               options.series[5].data = afterdata.map(function (item) {
+                  return parseFloat(SetMinHumidity);
+               });
+
+               $('#container').highcharts(options);
+
+               refreshData();
+            });
+         }
+
+      }
+
+   </script>
+</body>
+
+</html>
