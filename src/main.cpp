@@ -259,7 +259,7 @@ void test()
 
 void callback_MQTT(char *topic, byte *payload, unsigned int length)
 {
-  StaticJsonDocument<1024> doc;
+  JsonDocument doc;
 
   DeserializationError error = deserializeJson(doc, payload, length);
   String str(payload, length);
@@ -307,7 +307,7 @@ void testUHF()
 {
   myFM505.Begin(&Serial2);
   /*
-  StaticJsonDocument<64> doc5;
+  JsonDocument doc5;
   doc5.createNestedObject("Command");
   doc5.createNestedArray("Data");
   doc5["Command"] = "R"; // 讀取TID
@@ -325,11 +325,17 @@ void testUHF()
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, myFM505.getStringDecoder());
     if (myFM505.getStringDecoder().length() > 4)
     {
-      StaticJsonDocument<1024> doc;
+      JsonDocument doc;
+      doc["MQTT"].to<JsonObject>();
+      doc["MQTT"]["PUB"].to<JsonObject>();
+      doc["MQTT"]["PUB"]["topic"].to<JsonObject>();
+      doc["MQTT"]["PUB"]["message"].to<JsonObject>();
+      /*
       doc.createNestedObject("MQTT");
       doc["MQTT"].createNestedObject("PUB");
       doc["MQTT"]["PUB"].createNestedObject("topic");
       doc["MQTT"]["PUB"].createNestedObject("message");
+      */
       doc["MQTT"]["PUB"]["topic"] = "wisdom/hunter";
       doc["MQTT"]["PUB"]["message"] = myFM505.getStringDecoder();
       serializeJsonPretty(doc, Serial);
@@ -406,7 +412,7 @@ void testMQTT()
   clientMQTT.setServer(_E2JS(MQTT_SERVER).as<const char *>(), _E2JS(MQTT_PORT).as<uint16_t>());
   // 設定回呼函式
   clientMQTT.setCallback(callback_MQTT);
-  StaticJsonDocument<1024> doc;
+  JsonDocument doc;
   String strDoc = "{\
           \"MQTT\":\
           {\
@@ -416,21 +422,13 @@ void testMQTT()
             },\
           }\
         }";
-  doc.createNestedObject("MQTT");
-  doc["MQTT"].createNestedArray("PUB");
-  JsonObject pubObj = doc["MQTT"]["PUB"].createNestedObject();
-  pubObj["topic"] = "wisdom/hunter";
-  pubObj["message"] = "123";
-  JsonObject pubObj2 = doc["MQTT"]["PUB"].createNestedObject();
-  pubObj2["topic"] = "realopen/device_push/d56f0631";
-  pubObj2["message"] = "321";
-  /*
-    DeserializationError error = deserializeJson(doc, strDoc);
-    if (error)
-    {
-      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
-    }
-    */
+
+  DeserializationError error = deserializeJson(doc, strDoc);
+  if (error)
+  {
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
+  }
+
   while (true)
   {
     // 保持連線
@@ -440,6 +438,7 @@ void testMQTT()
     // 做其他的事情...
   }
 }
+/*
 void DMX::CellBack()
 {
   for (uint16_t i = 1; i <= 32; i++)
@@ -468,6 +467,7 @@ void testReadDMX()
     }
   }
 }
+*/
 //?=============樣板=============================
 /**
  * @brief 初始化並讀取設定檔
@@ -492,32 +492,25 @@ void ConfigInit(int mode = 0)
     SPIFFS.remove("/config.json");
     break;
   }
-  Init(23001);
-  Template_JsonPTC = new JsonPTC(Template_CMDSize);
+  Init(24001);
 
-  if (Template_JsonPTC->Begin(getFS(), "/CommandTable.json") < 0)
+  Template_JsonPTC = new JsonPTC(Template_CMDSize, Template_CFGSize);
+
+  if (Template_JsonPTC->Begin(getFS()) < 0)
   {
     _CONSOLE_PRINTLN(_PRINT_LEVEL_WARNING, "資料庫初始化錯誤!重置資料庫中...");
-    Template_JsonPTC->RstConfig();
+    if (Template_JsonPTC->RstConfig() < 0)
+      _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "資料庫初始化失敗!");
     while (Template_JsonPTC->SaveConfig() < 0)
     {
-      _CONSOLE_PRINTLN(_PRINT_LEVEL_WARNING, "Json Save ERROR!");
+      _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "資料庫存檔失敗!");
       vTaskDelay(3000 / portTICK_RATE_MS);
       ESP.restart();
     }
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "重置資料庫成功!");
   }
-  if (_E2JS(_INFORMATION).as<uint16_t>() != _T_E2S(_VER) && false) // HACK 暫時略過版本刷新
-  {
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_WARNING, "Ver ERROR! Rset Config...");
-    Template_JsonPTC->RstConfig();
-    _E2JS(_INFORMATION) = _T_E2S(_VER);
-    while (Template_JsonPTC->SaveConfig() < 0)
-    {
-      _CONSOLE_PRINTLN(_PRINT_LEVEL_WARNING, "Json Save ERROR!");
-      vTaskDelay(3000 / portTICK_RATE_MS);
-      ESP.restart();
-    }
-  }
+  //?=================================覆寫樣板參數============================================
+  _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());
 }
 /**
  * @brief 指令表
@@ -658,7 +651,7 @@ String CmdTable_Json(JsonObject obj)
     else if (item.key() == "UHF")
     {
       myFM505.Encoder(item.value().as<JsonObject>());
-      StaticJsonDocument<1024> doc;
+      JsonDocument doc;
       myFM505.Decoder(&doc);
 
       serializeJsonPretty(doc, rtStatus);
@@ -666,7 +659,7 @@ String CmdTable_Json(JsonObject obj)
       if (doc["Command"].as<String>() == "R")
       {
         _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "R");
-        StaticJsonDocument<1024> docIsJson;
+        JsonDocument docIsJson;
         DeserializationError error = deserializeJson(docIsJson, doc["Data"].as<String>());
         if (error)
         {
@@ -706,8 +699,20 @@ String CmdTable_Json(JsonObject obj)
 void setup()
 {
   Serial.begin(115200);
+  Adafruit_NeoPixel strip(1, 14, NEO_GRB + NEO_KHZ800);
+  strip.begin();
+  while (1)
+  {
+    for (int8_t j = 0; j < 3; j++)
+    {
+      strip.setPixelColor(0, strip.Color(j == 0 ? 5 : 0, j == 1 ? 5 : 0, j == 2 ? 5 : 0)); //  Set pixel's color (in RAM)
+      strip.show();
+      delay(1000);
+    }
+  }
+
   // testDMX();
-  testReadDMX();
+  // testReadDMX();
   ConfigInit();
   xTaskCreatePinnedToCore(WiFiInit,
                           "WiFiInit",

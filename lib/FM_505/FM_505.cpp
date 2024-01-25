@@ -127,9 +127,14 @@ void FM505::getStringSerial()
 
 void FM505::CMD(CMD_List list, JsonDocument *indoc)
 {
-    StaticJsonDocument<64> doc;
+    JsonDocument  doc;
+    
+    doc["Command"].to<JsonObject>();
+    doc["Data"].to<JsonArray>();
+    /*
     doc.createNestedObject("Command");
     doc.createNestedArray("Data");
+    */
     switch (list)
     {
     case FM505_FirmwareVersion:
