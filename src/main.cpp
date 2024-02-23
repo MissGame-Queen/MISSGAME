@@ -203,271 +203,7 @@ void setDAC()
   tone(pinDAC_R, 2093, 300);
   tone(pinDAC_L, 261, 300);
 }
-void test()
-{
-  pinMode(pinSet, INPUT_PULLUP);
-  if (digitalRead(pinSet) && false)
-  {
-    Adafruit_NeoPixel strip(1, pinLED, NEO_GRB + NEO_KHZ800);
-    bool statusSet = 1;
-    strip.begin();
-    pinMode(pinTrig, OUTPUT);
-    pinMode(PinEcho, INPUT);
-    pinMode(pinRelay[0], OUTPUT);
-    pinMode(pinRelay[1], OUTPUT);
-    pinMode(pinDAC_R, OUTPUT);
-    pinMode(pinDAC_L, OUTPUT);
-    setSDCard();
-    getSHT40();
-    setOLED();
-    while (true)
-    {
-      for (byte j = 0; j < 3; j++)
-      {
 
-        pinMode(pinSet, INPUT_PULLUP);
-        statusSet = digitalRead(pinSet);
-        pinMode(pinSet, OUTPUT);
-        getSHT40();
-        setOLED();
-        // getSonicRanging();
-        Serial.printf("SET=%d，MODE=%d，Analog=%d，tem:%f，hum:%f\r",
-                      statusSet, analogRead(pinmode), analogRead(pinAnalog), temp.temperature, humidity.relative_humidity);
-
-        if (statusSet)
-        {                                                                                      // For each pixel in strip...
-          strip.setPixelColor(0, strip.Color(j == 0 ? 5 : 0, j == 1 ? 5 : 0, j == 2 ? 5 : 0)); //  Set pixel's color (in RAM)
-          strip.show();                                                                        //  Update strip to match                                                                        //  Pause for a moment
-          digitalWrite(pinRelay[0], 1);
-          digitalWrite(pinRelay[1], 0);
-        }
-        else
-        {
-          digitalWrite(pinRelay[0], 0);
-          digitalWrite(pinRelay[1], 1);
-          setDAC();
-        }
-        delay(500);
-      }
-    }
-  }
-  else
-  {
-    setAudio();
-  }
-}
-
-void callback_MQTT(char *topic, byte *payload, unsigned int length)
-{
-  JsonDocument doc;
-
-  DeserializationError error = deserializeJson(doc, payload, length);
-  String str(payload, length);
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "收到新訊息!Topic: %s\nMessage:%s\n", topic, str.c_str());
-  if (error)
-  {
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s，以字串模式運行!\n", error.c_str());
-  }
-  else
-  {
-    // serializeJsonPretty(doc, Serial);
-    CmdTable_Json(doc.as<JsonObject>());
-  }
-}
-void reconnect_MQTT()
-{
-  // 重新連線到 MQTT 代理
-  while (!clientMQTT.connected())
-  {
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "正在嘗試MQTT連線...");
-    String clientId = "esp32-" + WiFi.macAddress();
-    if (clientMQTT.connect(clientId.c_str()))
-    {
-      _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "已連結到MQTT代理");
-      // 訂閱主題
-      clientMQTT.subscribe("enter/space");
-    }
-    else
-    {
-      _CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "錯誤代碼:%d，5秒後重連....", clientMQTT.state());
-      _DELAY_MS(5000);
-    }
-  }
-}
-/**
- * @brief
- *
- * @param obj
- * V:模組版本
- * S:
- * Q:PC+EPC+CRC16
- */
-
-void testUHF()
-{
-  myFM505.Begin(&Serial2);
-  /*
-  JsonDocument doc5;
-  doc5.createNestedObject("Command");
-  doc5.createNestedArray("Data");
-  doc5["Command"] = "R"; // 讀取TID
-  doc5["Data"].add(2);
-  doc5["Data"].add(0);
-  doc5["Data"].add(4);
-  myFM505.CMD(FM505::FM505_FirmwareVersion);
-  _DELAY_MS(200);
-  myFM505.CMD(FM505::FM505_Reader_ID);
-  _DELAY_MS(200);
-*/
-  while (1)
-  {
-    myFM505.CMD(FM505::FM505_Tag_EPC_ID);
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, myFM505.getStringDecoder());
-    if (myFM505.getStringDecoder().length() > 4)
-    {
-      JsonDocument doc;
-      doc["MQTT"].to<JsonObject>();
-      doc["MQTT"]["PUB"].to<JsonObject>();
-      doc["MQTT"]["PUB"]["topic"].to<JsonObject>();
-      doc["MQTT"]["PUB"]["message"].to<JsonObject>();
-      /*
-      doc.createNestedObject("MQTT");
-      doc["MQTT"].createNestedObject("PUB");
-      doc["MQTT"]["PUB"].createNestedObject("topic");
-      doc["MQTT"]["PUB"].createNestedObject("message");
-      */
-      doc["MQTT"]["PUB"]["topic"] = "wisdom/hunter";
-      doc["MQTT"]["PUB"]["message"] = myFM505.getStringDecoder();
-      serializeJsonPretty(doc, Serial);
-      CmdTable_Json(doc.as<JsonObject>());
-    }
-    _DELAY_MS(200);
-  }
-}
-
-void testDMX()
-{
-  Serial2.begin(115200, SERIAL_8N1, 17, 16);
-  /*
-  while (1)
-  {
-    while (Serial.available())
-    {
-      Serial2.write(Serial.read());
-    }
-    while (Serial2.available())
-    {
-      Serial.write(Serial2.read());
-    }
-  }
-  */
-  const uint8_t pin[]{19, 21, 18, 5};
-  const uint8_t data[][8] = {
-      {0x01, 0x06, 0x1F, 0x41, 0x00, 0x01, 0x1F, 0xCA},
-      {0x01, 0x06, 0x1F, 0x41, 0x00, 0x02, 0x5F, 0xCB},
-      {0x01, 0x06, 0x1F, 0x41, 0x00, 0x03, 0x9E, 0x0B},
-      {0x01, 0x06, 0x1F, 0x41, 0x00, 0x04, 0xDF, 0xC9}};
-  for (uint8_t i = 0; i < sizeof(pin); i++)
-    pinMode(pin[i], INPUT_PULLUP);
-
-  bool swLN = 0;
-  while (1)
-  {
-    for (uint8_t i = 0; i < sizeof(pin); i++)
-    {
-      if (!digitalRead(pin[i]))
-      {
-        Serial2.write(data[i], sizeof(data[i]));
-        Serial.printf("輸出%d號!\n", i + 1);
-        _DELAY_MS(500);
-      }
-    }
-
-    while (Serial.available())
-    {
-      Serial2.write(Serial.read());
-    }
-    while (Serial2.available())
-    {
-      Serial.write(Serial2.read());
-    }
-    /*
-    while (Serial2.available())
-    {
-      Serial.printf("%02x,", Serial2.read());
-      swLN = 1;
-    }
-    if (swLN)
-    {
-      swLN = 0;
-      Serial.println();
-    }
-    */
-  }
-}
-void testMQTT()
-{
-  waitConnect(0);
-  // 設定 MQTT 伺服器
-  clientMQTT.setServer(_E2JS(MQTT_SERVER).as<const char *>(), _E2JS(MQTT_PORT).as<uint16_t>());
-  // 設定回呼函式
-  clientMQTT.setCallback(callback_MQTT);
-  JsonDocument doc;
-  String strDoc = "{\
-          \"MQTT\":\
-          {\
-            \"PUB\" : {\
-              \"topic\" : \"wisdom/hunter\",\
-              \"message\" : 123\
-            },\
-          }\
-        }";
-
-  DeserializationError error = deserializeJson(doc, strDoc);
-  if (error)
-  {
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
-  }
-
-  while (true)
-  {
-    // 保持連線
-    reconnect_MQTT();
-    CmdTable_Json(doc.as<JsonObject>());
-    _DELAY_MS(2000);
-    // 做其他的事情...
-  }
-}
-/*
-void DMX::CellBack()
-{
-  for (uint16_t i = 1; i <= 32; i++)
-  {
-    Serial.printf("%02x,", DMX::Read(i));
-  }
-  Serial.println();
-}
-void testReadDMX()
-{
-  int readcycle = 0;
-  DMXConfig config;
-  config.pinRX = GPIO_NUM_16;
-  config.pinTX = GPIO_NUM_17;
-  config.direction = DMX_DIR_INPUT;
-  config.pinDR = GPIO_NUM_NC;
-  config.serialNum = 2;
-  config.coreNum = 1;
-  DMX::Initialize(config);
-  while (1)
-  {
-    if (millis() - readcycle > 100)
-    {
-      readcycle = millis();
-      DMX::IsHealthy();
-    }
-  }
-}
-*/
 //?=============樣板=============================
 /**
  * @brief 初始化並讀取設定檔
@@ -511,33 +247,56 @@ void ConfigInit(int mode = 0)
   }
   //?=================================覆寫樣板參數============================================
   _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());
+  _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "資料庫正常運作....");
 }
+/**
+ * @brief MQTT重連函數
+ *
+ * @return int
+ */
+/*
+int reconnect_MQTT(){
+  ;
+}
+*/
 /**
  * @brief 指令表
 //!不知為何.as<const char*>()不管用，需使用.as<String>().c_str();
 //!用std::to_string會怪怪的??
 //! Json賦值時需轉換成String
  */
-String CmdTable_Json(JsonObject obj)
+String myCmdTable_Json(JsonObject obj)
 {
-  String rtStatus = "";
+  String rtStatus = "{\"State\":\"OK\"}";
+  String errStatus = "{\"State\":\"ERROR\"}";
   for (JsonPair item : obj)
   { // FIXME
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "Function:%s\n", item.key().c_str());
+    /*
+    {
+      "LED":{
+        "Start":0,
+        "Length":8,
+        "R":255,
+        "G":255,
+        "B":255
+      }
+    }
+    */
     if (item.key() == "LED")
     {
       // 默認模式:輸入整條的RGB
-      if (!item.value().containsKey("Type") || item.value()["Type"] == "Default")
+      if ((!item.value().containsKey("Type") || item.value()["Type"] == "Default"))
       {
-        if (item.value().containsKey("R") && item.value().containsKey("G") &&
-            item.value().containsKey("B"))
+        if (item.value().containsKey("R") && item.value().containsKey("G") && item.value().containsKey("B") &&
+            item.value().containsKey("Start") && item.value().containsKey("Length"))
         {
           uint8_t numR = item.value()["R"].as<uint8_t>();
           uint8_t numG = item.value()["G"].as<uint8_t>();
           uint8_t numB = item.value()["B"].as<uint8_t>();
           _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "R:%d,G:%d,B:%d\n", numR, numG, numB);
 
-          for (uint8_t i = 0; i < numLEDMax; i++)
+          for (uint8_t i = item.value()["Start"].as<uint8_t>(); i < item.value()["Start"].as<uint8_t>() + item.value()["Length"].as<uint8_t>(); i++)
           {
             ledType[i] = 0;
             ledR[i] = numR;
@@ -546,24 +305,57 @@ String CmdTable_Json(JsonObject obj)
             ledTime[i] = millis();
           }
         }
+        else
+          rtStatus = errStatus;
       }
-      else if (item.value().containsKey("Type") && item.value().containsKey("Index"))
+      /*
+              {
+      "LED":{
+        "Start":0,
+        "Length":13,
+        "Type":"Breathe",
+        "R":255,
+        "G":255,
+        "B":255,
+        "ON":2000,
+        "OFF":2000
+      }
+    }
+      */
+      else if (item.value().containsKey("Type") && item.value().containsKey("Start") && item.value().containsKey("Length"))
       {
         if ((item.value()["Type"] == "Flash" || item.value()["Type"] == "Breathe") &&
             item.value().containsKey("OFF") && item.value().containsKey("ON") &&
-            item.value().containsKey("R") && item.value().containsKey("G") && item.value().containsKey("B"))
+            ((item.value().containsKey("R") && item.value().containsKey("G") && item.value().containsKey("B")) ||
+             item.value().containsKey("Random")))
         {
-          uint8_t index = item.value()["Index"].as<uint8_t>();
-          ledType[index] = item.value()["Type"] == "Flash" ? 1 : 2;
-          if (item.value().containsKey("random"))
-            ledType[index] += item.value()["random"].as<bool>() ? 0x80 : 0;
-          ledR[index] = item.value()["R"].as<uint8_t>();
-          ledG[index] = item.value()["G"].as<uint8_t>();
-          ledB[index] = item.value()["B"].as<uint8_t>();
-          ledON[index] = item.value()["ON"].as<uint16_t>();
-          ledOFF[index] = item.value()["OFF"].as<uint16_t>();
+          for (uint8_t index = item.value()["Start"].as<uint8_t>(); index < item.value()["Start"].as<uint8_t>() + item.value()["Length"].as<uint8_t>(); index++)
+          {
+            ledType[index] = item.value()["Type"] == "Flash" ? 1 : 2;
+            if (item.value().containsKey("Random"))
+              ledType[index] += 0x80;
+            else
+            {
+              ledR[index] = item.value()["R"].as<uint8_t>();
+              ledG[index] = item.value()["G"].as<uint8_t>();
+              ledB[index] = item.value()["B"].as<uint8_t>();
+            }
+            ledON[index] = item.value()["ON"].as<uint16_t>();
+            ledOFF[index] = item.value()["OFF"].as<uint16_t>();
+          }
         }
+        else
+          rtStatus = errStatus;
       }
+    }
+    else if (item.key() == "Battery")
+    {
+
+      float myFloat = analogRead(pinBattery_Vol) * 0.001611328125;
+      char formattedString[20]; // 假設字串足夠大，可以容納格式化的結果
+      // 使用 snprintf 格式化浮點數，將結果寫入字串中，只顯示小數點後兩位
+      snprintf(formattedString, sizeof(formattedString), "%.2f", myFloat);
+      rtStatus = formattedString;
     }
     else if (item.key() == "Audio" && item.value().containsKey("Type"))
     {
@@ -669,7 +461,7 @@ String CmdTable_Json(JsonObject obj)
         {
 
           serializeJsonPretty(docIsJson, Serial);
-          CmdTable_Json(docIsJson.as<JsonObject>());
+          myCmdTable_Json(docIsJson.as<JsonObject>());
         }
       }
     }
@@ -699,31 +491,70 @@ String CmdTable_Json(JsonObject obj)
 void setup()
 {
   Serial.begin(115200);
-  Adafruit_NeoPixel strip(1, 14, NEO_GRB + NEO_KHZ800);
+  // HACK
+  while (1)
+  {
+    Serial.println(analogRead(pinBattery_Vol) * 0.001611328125, 2);
+    delay(100);
+  }
+  /*
+  Adafruit_NeoPixel state(1, 14, NEO_GRB + NEO_KHZ800);
+  Adafruit_NeoPixel strip(1, 15, NEO_GRB + NEO_KHZ800);
+  state.begin();
   strip.begin();
   while (1)
   {
     for (int8_t j = 0; j < 3; j++)
     {
-      strip.setPixelColor(0, strip.Color(j == 0 ? 5 : 0, j == 1 ? 5 : 0, j == 2 ? 5 : 0)); //  Set pixel's color (in RAM)
-      strip.show();
-      delay(1000);
+      for (byte i = 0; i < 250; i++)
+      {
+        state.setPixelColor(0, state.Color(j == 0 ? i : 0, j == 1 ? i : 0, j == 2 ? i : 0)); //  Set pixel's color (in RAM)
+        strip.setPixelColor(0, strip.Color(j == 0 ? i : 0, j == 1 ? i : 0, j == 2 ? i : 0)); //  Set pixel's color (in RAM)
+        state.show();
+        strip.show();
+        delay(10);
+      }
+      for (byte i = 250; i > 1; i--)
+      {
+        state.setPixelColor(0, state.Color(j == 0 ? i : 0, j == 1 ? i : 0, j == 2 ? i : 0)); //  Set pixel's color (in RAM)
+        strip.setPixelColor(0, strip.Color(j == 0 ? i : 0, j == 1 ? i : 0, j == 2 ? i : 0)); //  Set pixel's color (in RAM)
+        state.show();
+        strip.show();
+        delay(10);
+      }
+      // delay(1000);
     }
   }
-
+*/
   // testDMX();
   // testReadDMX();
   ConfigInit();
+  /**********************ROTS************************/
+  xTaskCreatePinnedToCore(task_LED,
+                          "task_LED",
+                          4096,
+                          NULL,
+                          1,
+                          NULL,
+                          1);
+
   xTaskCreatePinnedToCore(WiFiInit,
                           "WiFiInit",
-                          2048,
+                          4096,
                           (void *)&(*Template_JsonPTC->getJsonObject()),
                           1,
                           NULL,
                           0);
+  xTaskCreatePinnedToCore(task_WebSocket,
+                          "task_WebSocket",
+                          4096,
+                          (void *)&(*Template_JsonPTC->getJsonObject()),
+                          1,
+                          NULL,
+                          1);
+
+  /*
   testMQTT();
-  while (1)
-    ;
   xTaskCreatePinnedToCore(task_MQTT,
                           "task_MQTT",
                           10240,
@@ -733,15 +564,10 @@ void setup()
                           0);
   myFM505.Begin(&Serial2);
   testUHF();
+*/
+
   while (1)
     ;
-  xTaskCreatePinnedToCore(task_LED,
-                          "task_LED",
-                          1536,
-                          NULL,
-                          1,
-                          NULL,
-                          0);
   pinMode(pinTone, OUTPUT);
   pinMode(pinRelay[0], OUTPUT);
   pinMode(pinRelay[1], OUTPUT);
