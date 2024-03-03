@@ -1,176 +1,117 @@
 {
   "STA_SSID": {
-    "Default": "MissGAME_amazing_2.4G",
-    "Register": "",
-    "Description": "想連接的WIFI名稱",
-    "Type": "text",
-    "Value": "MissGAME_office"
+    "Default": "C3122",
+    "Description": " 想連接的WIFI名稱"
   },
   "STA_PASSWORD": {
-    "Default": "missgame",
+    "Default": "000C3122",
     "Limit": "R",
-    "Register": "",
-    "Description": "想連接的WIFI密碼",
-    "Type": "password",
-    "Value": "missgame"
+    "Description": " 想連接的WIFI密碼",
+    "Type": "password"
   },
   "AP_SSID": {
     "Default": "",
-    "Register": "",
-    "Description": "連結到設備用的WIFI名稱",
-    "Type": "text",
-    "Value": ""
+    "Description": " 連結到設備用的WIFI名稱"
   },
   "AP_PASSWORD": {
     "Default": "00000000",
     "Limit": "R",
-    "Register": "",
-    "Description": "連結到設備用的WIFI密碼",
-    "Type": "password",
-    "Value": "00000000"
+    "Description": " 連結到設備用的WIFI密碼",
+    "Type": "password"
   },
   "WIFI_HOSTNAME": {
-    "Default": "MissGame_Demo",
-    "Register": "",
-    "Description": "設備名稱",
-    "Type": "text",
-    "Value": "MissGame_Demo"
+    "Default": "",
+    "Description": " 設備名稱"
   },
   "WIFI_MDNSNAME": {
-    "Default": "MissGame_Demo",
-    "Register": "",
-    "Description": "設備名稱",
-    "Type": "text",
-    "Value": "MissGame_Demo"
+    "Default": "",
+    "Description": " 網域的主機名稱(後面加上.local即可透過瀏覽器瀏覽)"
   },
-  "MQTT_SERVER": {
-    "Default": "broker.MQTTGO.io",
-    "Register": "",
-    "Description": "MQTT伺服器",
-    "Type": "text",
-    "Value": "broker.MQTTGO.io"
-  },
-  "MQTT_PORT": {
-    "Default": "1883",
-    "Register": "",
-    "Description": "MQTT的埠號",
-    "Type": "text",
-    "Value": "1883"
+  "FIRMWAREURL": {
+    "Default": "FirmwareUpdata.local",
+    "Description": " 自動更新韌體的目標網址"
   },
   "_INFORMATION": {
-    "Default": 21001,
+    "Default": 24001,
     "Limit": "W",
     "Register": 0,
-    "Description": "版本資料",
-    "Value": 23001
+    "Description": " 版本資料"
   },
   "_RESET": {
     "Default": 0,
     "Limit": "S",
     "Register": 1,
-    "Description": "回原廠設定",
-    "Value": 0
+    "Description": " 回原廠設定"
   },
   "_SAVE": {
     "Default": 0,
     "Limit": "S",
     "Register": 2,
-    "Description": "儲存設定",
-    "Value": 0
+    "Description": " 儲存設定"
   },
   "_MODBUS_EN": {
     "Default": 1,
     "Register": 3,
-    "Description": " Modbus啟用",
-    "Value": 1
+    "Description": " Modbus啟用"
   },
   "_MODBUS_ID": {
     "Default": 1,
     "Register": 4,
-    "Description": "設備ID",
-    "Value": 1
+    "Description": " 設備ID"
   },
   "_MODBUS_BAUD": {
     "Default": 1152,
     "Register": 5,
-    "Description": "鮑率*=100",
-    "Value": 1152
+    "Description": " 鮑率"
   },
   "_MODBUS_PROTOCOL": {
     "Default": 0,
     "Register": 6,
-    "Description": "通訊協議編號",
-    "Value": 0
+    "Description": " 通訊協議編號"
   },
   "_MODULE_TYPE": {
-    "Default": 4,
-    "Register": 7,
-    "Description": "模組類型",
-    "Value": 4
-  },
-  "_OLED_EN": {
     "Default": 1,
-    "Register": 9,
-    "Description": " OLED啟用",
-    "Value": 1
-  },
-  "_OLED_TYPE": {
-    "Default": 0,
-    "Register": 10,
-    "Description": " OLED型號設定 [方向3][型號3]… [方向0][型號0]",
-    "Value": 0
-  },
-  "_OLED_REFRESH": {
-    "Default": 0,
-    "Limit": "S",
-    "Register": 11,
-    "Description": " OLED刷新",
-    "Value": 0
-  },
-  "_OLED_PAGE": {
-    "Default": 0,
-    "Limit": "S",
-    "Register": 12,
-    "Description": " OLED顯示畫面",
-    "Value": 0
-  },
-  "_WIFI_CONNECT_TIME": {
-    "Default": 20,
-    "Register": 14,
-    "Description": "嘗試連線秒數",
-    "Value": 20
+    "Register": 7,
+    "Description": " 模組類型"
   },
   "_WIFI_TYPE": {
     "Default": 3,
-    "Register": 15,
-    "Description": "連線模式(0:STA,1:AP,2:APSTA)",
-    "Value": 3
+    "Register": 8,
+    "Description": " 連線模式(0:OFF,1:STA,2:AP,3:APSTA)"
   },
-  "_RFID_EN": {
+  "_WIFI_CONNECT_TIME": {
     "Default": 0,
-    "Register": 16,
-    "Description": "是否啟用RFID",
-    "Value": 0
+    "Register": 9,
+    "Description": " 嘗試連線次數"
   },
-  "_TH_TEMPERATURE": {
-    "Default": 0,
-    "Limit": "S",
-    "Register": 31,
-    "Description": "溫度",
-    "Value": 0
+  "_MQTT_EN": {
+    "Default": 1,
+    "Register": 10,
+    "Description": " 是否啟用MQTT"
   },
-  "_TH_HUMIDITY": {
+  "_MQTT_CLIENT_ID": {
     "Default": 0,
-    "Limit": "S",
-    "Register": 32,
-    "Description": "濕度",
-    "Value": 0
+    "Register": 11,
+    "Description": " MQTT客戶端名稱"
+  },
+  "_MQTT_BROKER_PORT": {
+    "Default": 1833,
+    "Register": 12,
+    "Description": " MQTT端口"
+  },
+  "_SOCKETIO_EN": {
+    "Default": 1,
+    "Register": 13,
+    "Description": " 是否啟用SocketIO"
+  },
+  "_SOCKETIO_PORT": {
+    "Default": 3000,
+    "Register": 14,
+    "Description": " SocketIO端口"
   },
   "_DATANUM": {
-    "Default": "",
-    "Limit": "W",
-    "Register": 65,
-    "Description": "",
-    "Value": ""
+    "Default": 0,
+    "Register": 15,
+    "Description": ""
   }
 }

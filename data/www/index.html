@@ -25,8 +25,8 @@
     </form>
     <h1>上傳韌體</h1>
     <form id="uploadForm" method='post' enctype='multipart/form-data' action='/firmwareupload'>
-      <input type='file' name='firmware' id='fileInput'>
-      <button type='button' onclick='uploadFile()'>上傳韌體</button>
+        <input type='file' name='firmware' id='fileInput'>
+        <button type='button' onclick='uploadFile()'>上傳韌體</button>
     </form>
     <h1>上傳配置檔</h1>
     <form method='post' enctype='multipart/form-data' action='/spiffsupload'>
@@ -34,6 +34,10 @@
         <input type='submit' value='上傳韌體'>
     </form>
     <h1>WIFI設定</h1>
+    
+    <label>設定WiFI名稱: </label><input type="text" id="setWiFi_STA_Name"></input><br>
+    <label>設定WiFI密碼: </label><input type="password" id="setWiFi_STA_Password"></input><br>
+    <input type="submit" value="連線到該WiFi" onclick="setWiFi()"></input>
     <label>WIFI_MODE: <span id='WIFI_MODE'>{WIFI_MODE}</span></label><br>
     <label>SSID: <span id='SSID'>{SSID}</span></label><br>
     <label>IP: <span id='IP'>{LOCALIP}</span></label><br>
@@ -64,6 +68,26 @@
 </body>
 
 <script>
+    function setWiFi() {
+        if (document.getElementById('setWiFi_STA_Name').value === "") {
+            alert("請選擇一個Wi-Fi網絡");
+            return;
+        }
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/WIFI_Connect");
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                resolve(xhr.responseText);
+            } else {
+                resolve(-2);
+                reject("請求失敗: " + xhr.status);
+            }
+        };
+        xhr.send("network=" + encodeURIComponent(document.getElementById('setWiFi_STA_Name').value) +
+            "&password=" + encodeURIComponent(document.getElementById('setWiFi_STA_Password').value));
+
+    }
     function connect() {
         var selectedNetwork = document.getElementById('networkList').value;
         if (selectedNetwork === "") {
@@ -189,13 +213,13 @@
         // 建立 FormData 物件，並將表單數據附加到其中
         var formData = new FormData(form);
         Swal.fire({
-                    title: '搜尋附近WiFi中...',
-                    allowOutsideClick: false,
-                    showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+            title: '搜尋附近WiFi中...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
 
         // 顯示 Swal 轉圈畫面
         Swal.fire({
@@ -204,8 +228,8 @@
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => {
-                        Swal.showLoading();
-                    },
+                Swal.showLoading();
+            },
             onBeforeOpen: () => {
                 // 使用 Fetch API 進行異步請求
                 fetch('/firmwareupload', {

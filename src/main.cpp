@@ -24,13 +24,13 @@ void ConfigInit(int mode = 0)
     SPIFFS.remove("/config.json");
     break;
   }
+  // 先判斷是否為配置模式，並修改樣板參數
+
   Init(24001);
-  Template_System_Obj["StatusLED_Pin"] = 14;
-  Template_System_Obj["StatusLED_Type"] = 1 | 4;
-  Template_System_Obj["StatusLED_Color_R"] = 255;
-  Template_System_Obj["StatusLED_Color_G"] = 0;
-  Template_System_Obj["StatusLED_Color_B"] = 0;
-  Template_System_Obj["StatusLED_Brightness"] = 50;
+  uint8_t pin = _T_E2JS(_PIN_SET).as<uint8_t>();
+  pinMode(pin, INPUT_PULLUP);
+  (!digitalRead(pin)) ? _T_E2JS(_TYPE_SET) = 1 : _T_E2JS(_TYPE_SET) = 0;
+
   xTaskCreatePinnedToCore(taskStatusLED,
                           "taskStatusLED",
                           2048,
@@ -38,9 +38,22 @@ void ConfigInit(int mode = 0)
                           1,
                           NULL,
                           0);
-  while (1)
-    _DELAY_MS(1000);
-  Template_JsonPTC = new JsonPTC(Template_CMDSize, Template_CFGSize);
+
+  if (_T_E2JS(_TYPE_SET).as<bool>())
+  {
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "配置模式!");
+    _T_E2JS(_StatusLED)
+    ["Type"] = _Monochrome + _Brightness;
+    _T_E2JS(_StatusLED)
+    ["Color_B"] = 0;
+    _T_E2JS(_StatusLED)
+    ["Brightness"] = 50;
+  }
+  else
+  {
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "一般模式!");
+  }
+  Template_JsonPTC = new JsonPTC();
 
   if (Template_JsonPTC->Begin(getFS()) < 0)
   {
@@ -60,15 +73,49 @@ void ConfigInit(int mode = 0)
   _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "資料庫正常運作....");
 }
 /**
- * @brief MQTT重連函數
+ * @brief 判斷參數執行任務
  *
- * @return int
  */
-/*
-int reconnect_MQTT(){
-  ;
+void RTOS()
+{
+  // WiFi連線任務
+  xTaskCreatePinnedToCore(WiFiInit,
+                          "WiFiInit",
+                          4096,
+                          (void *)&(*Template_JsonPTC->getJsonObject()),
+                          1,
+                          NULL,
+                          0);
+  // 自動更新固件任務
+  JsonDocument pvParam;
+  pvParam["Path"].set("D:/Project/Code/MissGame");
+  if (_E2JS(FIRMWAREURL).as<String>() != "")
+    xTaskCreatePinnedToCore(taskUpdateFirmware,
+                            "taskUpdateFirmware",
+                            10240,
+                            (void *)&(pvParam),
+                            1,
+                            NULL,
+                            0);
+  // MQTT任務
+  if (_E2JS(_MQTT_BROKER_URL).as<String>() != "")
+    xTaskCreatePinnedToCore(taskMQTT,
+                            "taskMQTT",
+                            10240,
+                            (void *)&(*Template_JsonPTC->getJsonObject()),
+                            1,
+                            NULL,
+                            0);
+  // SocketIO任務
+  if (_E2JS(_MQTT_BROKER_URL).as<String>() != "")
+    xTaskCreatePinnedToCore(taskMQTT,
+                            "taskMQTT",
+                            10240,
+                            (void *)&(*Template_JsonPTC->getJsonObject()),
+                            1,
+                            NULL,
+                            0);
 }
-*/
 /**
  * @brief 指令表
 //!不知為何.as<const char*>()不管用，需使用.as<String>().c_str();
@@ -80,7 +127,7 @@ String myCmdTable_Json(JsonObject obj)
   String rtStatus = "{\"State\":\"OK\"}";
   String errStatus = "{\"State\":\"ERROR\"}";
   for (JsonPair item : obj)
-  { // FIXME
+  { // FIXME 記得補上所需的功能
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "Function:%s\n", item.key().c_str());
     if (1 == 2)
       ;
@@ -106,20 +153,14 @@ String myCmdTable_Json(JsonObject obj)
   }
   return rtStatus;
 }
-
+void myMQTTsubscribe( ) { ; }
 void setup()
 {
   Serial.begin(115200);
+  // test();
   Wire.begin();
   ConfigInit();
-  /**********************ROTS************************/
-  xTaskCreatePinnedToCore(WiFiInit,
-                          "WiFiInit",
-                          4096,
-                          (void *)&(*Template_JsonPTC->getJsonObject()),
-                          1,
-                          NULL,
-                          0);
+  RTOS();
 }
 
 void loop()
