@@ -1,10 +1,10 @@
 {
   "STA_SSID": {
-    "Default": "C3122",
+    "Default": "MissGame_B2",
     "Description": " 想連接的WIFI名稱"
   },
   "STA_PASSWORD": {
-    "Default": "000C3122",
+    "Default": "missgame",
     "Limit": "R",
     "Description": " 想連接的WIFI密碼",
     "Type": "password"
@@ -28,8 +28,20 @@
     "Description": " 網域的主機名稱(後面加上.local即可透過瀏覽器瀏覽)"
   },
   "FIRMWAREURL": {
-    "Default": "FirmwareUpdata.local",
-    "Description": " 自動更新韌體的目標網址"
+    "Default": "",
+    "Description": " 自動更新韌體的目標網址(空=不自動更新)例:FirmwareUpdata.local"
+  },
+  "MQTT_BROKER_URL": {
+    "Default": "192.168.1.104",
+    "Description": " MQTT服務器網址(localhost.local)"
+  },
+  "SOCKETIO_URL": {
+    "Default": "192.168.1.104",
+    "Description": " SocketIO伺服器網址(localhost.local)"
+  },
+  "MQTT_CLIENT_NAME": {
+    "Default": "",
+    "Description": " MQTT客戶端名稱"
   },
   "_INFORMATION": {
     "Default": 24001,
@@ -84,30 +96,30 @@
     "Register": 9,
     "Description": " 嘗試連線次數"
   },
-  "_MQTT_EN": {
-    "Default": 1,
-    "Register": 10,
-    "Description": " 是否啟用MQTT"
-  },
-  "_MQTT_CLIENT_ID": {
-    "Default": 0,
-    "Register": 11,
-    "Description": " MQTT客戶端名稱"
-  },
   "_MQTT_BROKER_PORT": {
     "Default": 1833,
-    "Register": 12,
+    "Register": 10,
     "Description": " MQTT端口"
   },
-  "_SOCKETIO_EN": {
-    "Default": 1,
-    "Register": 13,
-    "Description": " 是否啟用SocketIO"
+  "_MQTT_DELAYTIME": {
+    "Default": 100,
+    "Register": 11,
+    "Description": " MQTT的loop時間(ms)"
   },
   "_SOCKETIO_PORT": {
     "Default": 3000,
-    "Register": 14,
+    "Register": 12,
     "Description": " SocketIO端口"
+  },
+  "_SOCKETIO_DELAYTIME": {
+    "Default": 100,
+    "Register": 13,
+    "Description": " SocketIO端口的loop時間(ms)"
+  },
+  "_MODULE_ID": {
+    "Default": 99,
+    "Register": 14,
+    "Description": " 模組在環境中唯一ID"
   },
   "_DATANUM": {
     "Default": 0,

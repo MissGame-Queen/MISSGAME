@@ -1,5 +1,4 @@
 #include "main.h"
-
 //?=============樣板=============================
 /**
  * @brief 初始化並讀取設定檔
@@ -82,10 +81,11 @@ void RTOS()
   xTaskCreatePinnedToCore(WiFiInit,
                           "WiFiInit",
                           4096,
-                          (void *)&(*Template_JsonPTC->getJsonObject()),
+                          (void *)Template_JsonPTC->getJsonObject(),
                           1,
                           NULL,
                           0);
+
   // 自動更新固件任務
   JsonDocument pvParam;
   pvParam["Path"].set("D:/Project/Code/MissGame");
@@ -98,20 +98,20 @@ void RTOS()
                             NULL,
                             0);
   // MQTT任務
-  if (_E2JS(_MQTT_BROKER_URL).as<String>() != "")
+  if (_E2JS(MQTT_BROKER_URL).as<String>() != "")
     xTaskCreatePinnedToCore(taskMQTT,
                             "taskMQTT",
                             10240,
-                            (void *)&(*Template_JsonPTC->getJsonObject()),
+                            (void *)Template_JsonPTC->getJsonObject(),
                             1,
                             NULL,
                             0);
   // SocketIO任務
-  if (_E2JS(_MQTT_BROKER_URL).as<String>() != "")
-    xTaskCreatePinnedToCore(taskMQTT,
-                            "taskMQTT",
+  if (_E2JS(SOCKETIO_URL).as<String>() != "")
+    xTaskCreatePinnedToCore(taskSocketIO,
+                            "taskSocketIO",
                             10240,
-                            (void *)&(*Template_JsonPTC->getJsonObject()),
+                            (void *)Template_JsonPTC->getJsonObject(),
                             1,
                             NULL,
                             0);
@@ -153,14 +153,60 @@ String myCmdTable_Json(JsonObject obj)
   }
   return rtStatus;
 }
-void myMQTTsubscribe( ) { ; }
+void myMQTTsubscribe(PubSubClient *MQTTClient) { ; }
+void mysocketIOEvent(JsonDocument *doc)
+{
+  JsonArray args = doc->as<JsonArray>();
+  String eventName = args[0];
+  uint16_t id = args[1]["id"].as<uint16_t>();
+  if (eventName == "MissGame")
+  {
+    // FIXME 補上自製模組的運作方法
+    switch (id)
+    {
+    case 1:
+    case 2:
+    case 3:
+    {
+      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
+      uint16_t value = args[1]["value"].as<uint16_t>();
+      if (value > 0) // 如果是0會變成迴圈
+        CoinDispenser(args[1]["value"].as<uint16_t>());
+    }
+    break;
+    case 4:
+      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
+      break;
+    default:
+      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
+      break;
+    }
+  }
+  else
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此事件: %s!\n", eventName.c_str());
+}
+
 void setup()
 {
   Serial.begin(115200);
-  // test();
   Wire.begin();
   ConfigInit();
   RTOS();
+  uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
+  switch (id)
+  {
+  case 1:
+  case 2:
+  case 3:
+    CoinDispenser(0);
+    break;
+  case 4:
+    break;
+
+  default:
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
+    break;
+  }
 }
 
 void loop()
