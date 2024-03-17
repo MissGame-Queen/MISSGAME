@@ -162,11 +162,23 @@ void mysocketIOEvent(JsonDocument *doc)
   if (eventName == "MissGame")
   {
     // FIXME 補上自製模組的運作方法
+    /**
+     @brief id表
+     1~3 出幣機
+     4~6 出球機
+     7~9 計時器
+     10~19 bricks
+     20~29 音效播放模組
+     30~49 杖
+     40~49 矛
+     50~59 錘
+     60~69 鞭
+     70~79 劍
+     80~89 斧
+     */
     switch (id)
     {
-    case 1:
-    case 2:
-    case 3:
+    case 1 ... 3:
     {
       _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
       uint16_t value = args[1]["value"].as<uint16_t>();
@@ -174,8 +186,36 @@ void mysocketIOEvent(JsonDocument *doc)
         CoinDispenser(args[1]["value"].as<uint16_t>());
     }
     break;
-    case 4:
+    case 4 ... 6:
+    {
       _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
+    }
+    break;
+    case 7 ... 9:
+    {
+      if (args[1].containsKey("value"))
+      {
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
+        // xQueueSend(queueTimer, &seconds, 0);
+        Timer_newSecond = args[1]["value"].as<String>();
+      }
+      if (args[1].containsKey("status"))
+      {
+        Timer_status = args[1]["status"].as<uint8_t>();
+      }
+    }
+    break;
+    case 10 ... 19:
+      break;
+    case 20 ... 29:
+      break;
+    case 30 ... 39:
+      break;
+    case 40 ... 49:
+      break;
+    case 50 ... 59:
+      break;
+    case 60 ... 69:
       break;
     default:
       _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
@@ -189,20 +229,44 @@ void mysocketIOEvent(JsonDocument *doc)
 void setup()
 {
   Serial.begin(115200);
+  // taskTimer(1010);
+  //  BallDispenser(0);
   Wire.begin();
   ConfigInit();
   RTOS();
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
   switch (id)
   {
-  case 1:
-  case 2:
-  case 3:
+  case 1 ... 4:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機模式~");
     CoinDispenser(0);
     break;
-  case 4:
+  case 5 ... 6:
     break;
-
+  case 7 ... 9:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
+    xTaskCreatePinnedToCore(taskTimer,
+                            "taskTimer",
+                            10240,
+                            NULL,
+                            1,
+                            NULL,
+                            0);
+    break;
+  case 10 ... 19:
+    break;
+  case 20 ... 29:
+      _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
+      SoundPlayer();
+    break;
+  case 30 ... 39:
+    break;
+  case 40 ... 49:
+    break;
+  case 50 ... 59:
+    break;
+  case 60 ... 69:
+    break;
   default:
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
     break;
