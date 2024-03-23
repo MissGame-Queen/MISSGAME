@@ -35,6 +35,7 @@ enum ModbusRegister
     _SOCKETIO_PORT,      // SocketIO端口{3000}
     _SOCKETIO_DELAYTIME, // SocketIO端口的loop時間(ms){100}
     _MODULE_ID,          // 模組在環境中唯一ID{99}
+    _BATTERY_VAL,        // 電池電壓
     _DATANUM
 };
 

@@ -66,6 +66,8 @@ void ConfigInit(int mode = 0)
       ESP.restart();
     }
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "重置資料庫成功!");
+    while (1)
+      ;
   }
   //?=================================覆寫樣板參數============================================
   _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());
@@ -176,50 +178,52 @@ void mysocketIOEvent(JsonDocument *doc)
      70~79 劍
      80~89 斧
      */
-    switch (id)
+    if (id == _E2JS(_MODULE_ID).as<uint16_t>())
     {
-    case 1 ... 3:
-    {
-      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
-      uint16_t value = args[1]["value"].as<uint16_t>();
-      if (value > 0) // 如果是0會變成迴圈
-        CoinDispenser(args[1]["value"].as<uint16_t>());
-    }
-    break;
-    case 4 ... 6:
-    {
-      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
-    }
-    break;
-    case 7 ... 9:
-    {
-      if (args[1].containsKey("value"))
+      switch (id)
       {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
-        // xQueueSend(queueTimer, &seconds, 0);
-        Timer_newSecond = args[1]["value"].as<String>();
-      }
-      if (args[1].containsKey("status"))
+      case 1 ... 3:
       {
-        Timer_status = args[1]["status"].as<uint8_t>();
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
+        uint16_t value = args[1]["value"].as<uint16_t>();
+        if (value > 0) // 如果是0會變成迴圈
+          CoinDispenser(args[1]["value"].as<uint16_t>());
       }
-    }
-    break;
-    case 10 ... 19:
       break;
-    case 20 ... 29:
+      case 4 ... 6:
+      {
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
+      }
       break;
-    case 30 ... 39:
+      case 7 ... 9:
+      {
+        if (args[1].containsKey("value"))
+        {
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
+          // xQueueSend(queueTimer, &seconds, 0);
+          Timer_newSecond = args[1]["value"].as<String>();
+        }
+        if (args[1].containsKey("status"))
+        {
+          Timer_status = args[1]["status"].as<uint8_t>();
+        }
+      }
       break;
-    case 40 ... 49:
-      break;
-    case 50 ... 59:
-      break;
-    case 60 ... 69:
-      break;
-    default:
-      _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
-      break;
+      case 10 ... 19:
+        break;
+      case 20 ... 29:
+        break;
+      case 30 ... 89:
+        if (args[1].containsKey("value"))
+          // WeaponLight(int8_t((id - 20) / 10), args[1]["value"].as<uint8_t>());
+          docWeaponLight["Level"] = args[1]["value"].as<uint8_t>();
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id,args[1]["value"].as<uint8_t>());
+
+        break;
+      default:
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
+        break;
+      }
     }
   }
   else
@@ -235,6 +239,7 @@ void setup()
   ConfigInit();
   RTOS();
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
+  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
   switch (id)
   {
   case 1 ... 4:
@@ -256,17 +261,32 @@ void setup()
   case 10 ... 19:
     break;
   case 20 ... 29:
-      _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
-      SoundPlayer();
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
+    SoundPlayer();
     break;
-  case 30 ... 39:
-    break;
-  case 40 ... 49:
-    break;
-  case 50 ... 59:
-    break;
-  case 60 ... 69:
-    break;
+  case 30 ... 89:
+  {
+    JsonDocument *doc = new JsonDocument;
+    (*doc)["Length"] = 11;
+    (*doc)["Pin"] = 15;
+    (*doc)["Type"] = 1;
+    (*doc)["Level"] = 99;
+    (*doc)["DelayTime"] = 50;
+    (*doc)["Color_Cycle"] = 750;
+    (*doc)["Brightness"] = 10;
+    (*doc)["Brightness_Cycel_ON"] = 500;
+    (*doc)["Brightness_Cycel_ON"] = 500;
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
+    xTaskCreatePinnedToCore(taskWeaponLight,
+                            "taskWeaponLight",
+                            10240,
+                            (void *)doc,
+                            10,
+                            NULL,
+                            0);
+    // WeaponLight(0, 0);
+  }
+  break;
   default:
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
     break;
@@ -275,4 +295,7 @@ void setup()
 
 void loop()
 {
+  _E2JS(_BATTERY_VAL)=analogRead(32);
+  //Serial.println(_E2JS(_BATTERY_VAL).as<uint16_t>());
+  _DELAY_MS(1000);
 }

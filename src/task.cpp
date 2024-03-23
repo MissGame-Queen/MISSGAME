@@ -3,6 +3,7 @@ Servo myServo; //   Create Servo object to control the servo
                // QueueHandle_t queueTimer = xQueueCreate(1, sizeof(uint16_t));
 String Timer_newSecond = "00:00";
 uint16_t Timer_status = 0;
+JsonDocument docWeaponLight;
 tm tmTimer;
 DFRobotDFPlayerMini myDFPlayer;
 /**
@@ -138,8 +139,6 @@ void BallDispenser(uint16_t time)
 void SoundPlayer()
 {
 
-    
-
     Serial2.begin(9600);
 
     Serial.begin(115200);
@@ -189,8 +188,8 @@ void SoundPlayer()
     //  myDFPlayer.outputSetting(true, 15); //output setting, enable the output and set the gain to 15
 
     //----Mp3 play----
-    
-    //myDFPlayer.playMp3Folder(4); // play specific mp3 in SD:/MP3/0004.mp3; File Name(0~65535)
+
+    // myDFPlayer.playMp3Folder(4); // play specific mp3 in SD:/MP3/0004.mp3; File Name(0~65535)
     //----Read imformation----
     Serial.println(myDFPlayer.readState());               // read mp3 state
     Serial.println(myDFPlayer.readVolume());              // read current volume
@@ -406,5 +405,116 @@ void printDetail(uint8_t type, int value)
         break;
     default:
         break;
+    }
+}
+/**
+ * @brief 武器燈
+ *
+ */
+// FIXME不知為何會中斷while() 須提升優先級
+/**
+ * @brief
+ *
+ * @param pvParam
+ */
+void taskWeaponLight(void *pvParam)
+{
+    JsonDocument *otrdoc = (JsonDocument *)pvParam;
+    docWeaponLight = *otrdoc;
+    delete otrdoc;
+    // JsonObject *prtObj = (JsonObject *)pvParam;
+    const uint8_t pinOut[]{25, 26, 27, 33};
+    Adafruit_NeoPixel strip(docWeaponLight.containsKey("Length") ? docWeaponLight["Length"] : 11,
+                            docWeaponLight.containsKey("Pin") ? docWeaponLight["Pin"] : 15,
+                            NEO_GRB + NEO_KHZ800);
+    strip.begin();
+    strip.show();
+    for (size_t i = 0; i < sizeof(pinOut); i++)
+    {
+        ledcSetup(i, 100, 12);
+        ledcAttachPin(pinOut[i], i);
+        ledcWrite(i, 0);
+    }
+    // serializeJson(docWeaponLight, Serial);
+    uint8_t type = docWeaponLight["Type"].as<uint8_t>();
+    uint32_t color = 0;
+    uint16_t cycle = docWeaponLight["Color_Cycle"].as<uint16_t>();
+    uint8_t brightness = docWeaponLight["Brightness"].as<uint16_t>();
+    while (1)
+    {
+        switch (type)
+        {
+        case 1 ... 6:
+            switch (docWeaponLight["Level"].as<uint8_t>())
+            {
+            case 1:
+                ledcWrite(0, 1000);
+                ledcWrite(1, 0);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+            case 2:
+                ledcWrite(0, 1000);
+                ledcWrite(1, 1000);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+            case 3:
+                ledcWrite(0, 1000);
+                ledcWrite(1, 1000);
+                ledcWrite(2, 1000);
+                ledcWrite(3, 0);
+
+                break;
+            case 99:
+            {
+                static uint8_t num = 0;
+                switch (num)
+                {
+                case 0 ... 10:
+                    ledcWrite(0, 1000);
+                    ledcWrite(1, 0);
+                    ledcWrite(2, 0);
+                    ledcWrite(3, 0);
+
+                    break;
+                case 11 ... 20:
+                    ledcWrite(0, 1000);
+                    ledcWrite(1, 1000);
+                    ledcWrite(2, 0);
+                    ledcWrite(3, 0);
+                    break;
+                case 21 ... 30:
+                    ledcWrite(0, 1000);
+                    ledcWrite(1, 1000);
+                    ledcWrite(2, 1000);
+                    ledcWrite(3, 0);
+                    break;
+                default:
+                    num = 0;
+                    break;
+                }
+                num++;
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                {
+                    color = setRainbowRGB((map(millis() % cycle, 0, cycle, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                    color = setBrightnessRGB(color, brightness);
+                    strip.setPixelColor(i, color);
+                }
+            }
+            break;
+            default:
+                ledcWrite(0, 0);
+                ledcWrite(1, 0);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                    strip.setPixelColor(i, 0);
+                break;
+            }
+            strip.show();
+            break;
+        }
+        _DELAY_MS(docWeaponLight["DelayTime"].as<uint16_t>());
     }
 }
