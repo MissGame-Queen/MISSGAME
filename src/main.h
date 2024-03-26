@@ -24,18 +24,19 @@ enum ModbusRegister
     _RESET,              // 回原廠設定{,S}
     _SAVE,               // 儲存設定{,S}
     _MODBUS_EN,          // Modbus啟用{1}
-    _MODBUS_ID,          // 設備ID{1}
-    _MODBUS_BAUD,        // 鮑率{1152}
-    _MODBUS_PROTOCOL,    // 通訊協議編號{0}
-    _MODULE_TYPE,        // 模組類型{1}
+    _MODBUS_ID,          // MODBUS ID{1}
+    _MODBUS_BAUD,        // MODBUS鮑率{1152}
+    _MODBUS_PROTOCOL,    // MODBUS通訊協議編號{0}
     _WIFI_TYPE,          // 連線模式(0:OFF,1:STA,2:AP,3:APSTA){3}
     _WIFI_CONNECT_TIME,  // 嘗試連線次數{0}
     _MQTT_BROKER_PORT,   // MQTT端口{1833}
     _MQTT_DELAYTIME,     // MQTT的loop時間(ms){100}
     _SOCKETIO_PORT,      // SocketIO端口{3000}
     _SOCKETIO_DELAYTIME, // SocketIO端口的loop時間(ms){100}
-    _MODULE_ID,          // 模組在環境中唯一ID{99}
-    _BATTERY_VAL,        // 電池電壓
+
+    _MODULE_TYPE,        // 模組類型{1}
+    _MODULE_ID,   // 模組在環境中唯一ID{99}
+    _BATTERY_VAL, // 電池電壓
     _DATANUM
 };
 

@@ -58,16 +58,39 @@ void ConfigInit(int mode = 0)
   {
     _CONSOLE_PRINTLN(_PRINT_LEVEL_WARNING, "資料庫初始化錯誤!重置資料庫中...");
     if (Template_JsonPTC->RstConfig() < 0)
+    {
       _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "資料庫初始化失敗!");
-    while (Template_JsonPTC->SaveConfig() < 0)
+      _T_E2JS(_StatusLED)
+      ["Type"] = _Monochrome + _Brightness;
+      _T_E2JS(_StatusLED)
+      ["Color_R"] = 255;
+      _T_E2JS(_StatusLED)
+      ["Color_G"] = 0;
+      _T_E2JS(_StatusLED)
+      ["Color_B"] = 0;
+      _T_E2JS(_StatusLED)
+      ["Brightness"] = 50;
+      while (1)
+        ;
+    }
+    if (Template_JsonPTC->SaveConfig() < 0)
     {
       _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "資料庫存檔失敗!");
-      vTaskDelay(3000 / portTICK_RATE_MS);
-      ESP.restart();
+      _T_E2JS(_StatusLED)
+      ["Type"] = _Monochrome + _Brightness;
+      _T_E2JS(_StatusLED)
+      ["Color_R"] = 255;
+      _T_E2JS(_StatusLED)
+      ["Color_G"] = 0;
+      _T_E2JS(_StatusLED)
+      ["Color_B"] = 0;
+      _T_E2JS(_StatusLED)
+      ["Brightness"] = 50;
+      while (1)
+        ;
+      // ESP.restart();
     }
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "重置資料庫成功!");
-    while (1)
-      ;
   }
   //?=================================覆寫樣板參數============================================
   _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());
@@ -160,69 +183,104 @@ void mysocketIOEvent(JsonDocument *doc)
 {
   JsonArray args = doc->as<JsonArray>();
   String eventName = args[0];
-  uint16_t id = args[1]["id"].as<uint16_t>();
+
   if (eventName == "MissGame")
   {
-    // FIXME 補上自製模組的運作方法
-    /**
-     @brief id表
-     1~3 出幣機
-     4~6 出球機
-     7~9 計時器
-     10~19 bricks
-     20~29 音效播放模組
-     30~49 杖
-     40~49 矛
-     50~59 錘
-     60~69 鞭
-     70~79 劍
-     80~89 斧
-     */
-    if (id == _E2JS(_MODULE_ID).as<uint16_t>())
+    uint16_t id = 0;
+    if (!args[1].containsKey("ids"))
     {
-      switch (id)
-      {
-      case 1 ... 3:
-      {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
-        uint16_t value = args[1]["value"].as<uint16_t>();
-        if (value > 0) // 如果是0會變成迴圈
-          CoinDispenser(args[1]["value"].as<uint16_t>());
-      }
-      break;
-      case 4 ... 6:
-      {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
-      }
-      break;
-      case 7 ... 9:
-      {
-        if (args[1].containsKey("value"))
-        {
-          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
-          // xQueueSend(queueTimer, &seconds, 0);
-          Timer_newSecond = args[1]["value"].as<String>();
-        }
-        if (args[1].containsKey("status"))
-        {
-          Timer_status = args[1]["status"].as<uint8_t>();
-        }
-      }
-      break;
-      case 10 ... 19:
-        break;
-      case 20 ... 29:
-        break;
-      case 30 ... 89:
-        if (args[1].containsKey("value"))
-          // WeaponLight(int8_t((id - 20) / 10), args[1]["value"].as<uint8_t>());
-          docWeaponLight["Level"] = args[1]["value"].as<uint8_t>();
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id,args[1]["value"].as<uint8_t>());
+      args[1].createNestedArray("ids");
+      args[1]["ids"].add(args[1]["id"].as<uint16_t>());
+    }
+    for (JsonVariant item : args[1]["ids"].as<JsonArray>())
+    {
+      id = item.as<uint16_t>();
 
+      // FIXME 補上自製模組的運作方法
+      /**
+       @brief id表
+       1~4 出幣機
+       5~6 出球機
+       7~9 計時器
+       10~19 bricks
+       20~29 音效播放模組
+       30~39 杖
+       40~49 矛
+       50~59 錘
+       60~69 鞭
+       70~79 劍
+       80~89 斧
+       */
+      if (id == _E2JS(_MODULE_ID).as<uint16_t>())
+      {
+        switch (id)
+        {
+        case 1 ... 4:
+        {
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
+          uint16_t value = args[1]["value"].as<uint16_t>();
+          if (value > 0) // 如果是0會變成迴圈
+            CoinDispenser(value);
+        }
         break;
-      default:
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
+        case 5 ... 6:
+        {
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
+          uint16_t value = args[1]["value"].as<uint16_t>();
+          if (value > 0) // 如果是0會變成迴圈
+            BallDispenser(value);
+        }
         break;
+        case 7 ... 9:
+        {
+          if (args[1].containsKey("value"))
+          {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
+            // xQueueSend(queueTimer, &seconds, 0);
+            Timer_newSecond = args[1]["value"].as<String>();
+          }
+          if (args[1].containsKey("status"))
+          {
+            Timer_status = args[1]["status"].as<uint8_t>();
+          }
+        }
+        break;
+        case 10 ... 19:
+          break;
+        case 20 ... 29:
+          break;
+        case 30 ... 89:
+          if (args[1].containsKey("value"))
+          {
+            docWeaponLight["Level"] = args[1]["value"].as<uint8_t>();
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id, args[1]["value"].as<uint8_t>());
+          }
+          if (args[1].containsKey("battery"))
+          {
+            const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
+            JsonDocument doc;
+            JsonArray array = doc.to<JsonArray>();
+
+            // add evnet name
+            // Hint: socket.on('event_name', ....
+            array.add("event_name");
+
+            // add payload (parameters) for the event
+            JsonObject param1 = array.createNestedObject();
+            param1["now"] = _E2JS(_BATTERY_VAL).as<float>();
+
+            // JSON to String (serializion)
+            String output;
+            serializeJson(doc, output);
+
+            // Send event
+            socketIO.sendEVENT(output);
+          }
+          break;
+        default:
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
+          break;
+        }
       }
     }
   }
@@ -234,7 +292,6 @@ void setup()
 {
   Serial.begin(115200);
   // taskTimer(1010);
-  //  BallDispenser(0);
   Wire.begin();
   ConfigInit();
   RTOS();
@@ -247,6 +304,8 @@ void setup()
     CoinDispenser(0);
     break;
   case 5 ... 6:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機模式~");
+    BallDispenser(0);
     break;
   case 7 ... 9:
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
@@ -264,18 +323,32 @@ void setup()
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
     SoundPlayer();
     break;
-  case 30 ... 89:
+  case 30 ... 39:
+  case 40 ... 49:
+  case 60 ... 89:
   {
     JsonDocument *doc = new JsonDocument;
     (*doc)["Length"] = 11;
     (*doc)["Pin"] = 15;
-    (*doc)["Type"] = 1;
     (*doc)["Level"] = 99;
     (*doc)["DelayTime"] = 50;
-    (*doc)["Color_Cycle"] = 750;
-    (*doc)["Brightness"] = 10;
-    (*doc)["Brightness_Cycel_ON"] = 500;
-    (*doc)["Brightness_Cycel_ON"] = 500;
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
+    xTaskCreatePinnedToCore(taskWeaponLight,
+                            "taskWeaponLight",
+                            20480,
+                            (void *)doc,
+                            10,
+                            NULL,
+                            0);
+  }
+  break;
+  case 50 ... 59:
+  {
+    JsonDocument *doc = new JsonDocument;
+    (*doc)["Length"] = 35;
+    (*doc)["Pin"] = 15;
+    (*doc)["Level"] = 99;
+    (*doc)["DelayTime"] = 50;
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
     xTaskCreatePinnedToCore(taskWeaponLight,
                             "taskWeaponLight",
@@ -284,7 +357,6 @@ void setup()
                             10,
                             NULL,
                             0);
-    // WeaponLight(0, 0);
   }
   break;
   default:
@@ -295,7 +367,5 @@ void setup()
 
 void loop()
 {
-  _E2JS(_BATTERY_VAL)=analogRead(32);
-  //Serial.println(_E2JS(_BATTERY_VAL).as<uint16_t>());
-  _DELAY_MS(1000);
+
 }

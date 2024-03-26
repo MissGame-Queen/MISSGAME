@@ -21,6 +21,7 @@
         "string_view": "cpp",
         "initializer_list": "cpp",
         "bitset": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "cmath": "cpp"
     }
 }

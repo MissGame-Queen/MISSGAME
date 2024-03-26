@@ -32,11 +32,11 @@
     "Description": " 自動更新韌體的目標網址(空=不自動更新)例:FirmwareUpdata.local"
   },
   "MQTT_BROKER_URL": {
-    "Default": "192.168.1.104",
+    "Default": "",
     "Description": " MQTT服務器網址(localhost.local)"
   },
   "SOCKETIO_URL": {
-    "Default": "192.168.1.104",
+    "Default": "192.168.1.110",
     "Description": " SocketIO伺服器網址(localhost.local)"
   },
   "MQTT_CLIENT_NAME": {
@@ -69,7 +69,7 @@
   "_MODBUS_ID": {
     "Default": 1,
     "Register": 4,
-    "Description": " 設備ID"
+    "Description": " MODBUS ID"
   },
   "_MODBUS_BAUD": {
     "Default": 1152,

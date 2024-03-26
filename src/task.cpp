@@ -14,47 +14,40 @@ void CoinDispenser(uint16_t time)
 {
     const uint8_t pinServo = 13, pinLED = 4, pinTrigger = 15;
     const uint16_t waittim = 600;
+    const int16_t startdeg = 105;
+    const int16_t enddeg = 96;
     if (time > 0)
     {
-        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被觸發了~");
+        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被函數觸發了~");
         for (uint16_t i = 0; i < time; i++)
         {
-            int16_t d = 103;
             digitalWrite(pinLED, 0);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
+            myServo.write(startdeg);
             _DELAY_MS(waittim);
-            d -= 96;
             digitalWrite(pinLED, 1);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
+            myServo.write(enddeg);
             _DELAY_MS(waittim);
         }
         return;
     }
 
     myServo.attach(pinServo); //   Servo is connected to digital pin 9
-    int16_t d = 105;
-    myServo.write(d);
+    myServo.write(startdeg);
     pinMode(pinLED, OUTPUT);
     pinMode(pinTrigger, INPUT_PULLUP);
     while (1)
     {
         while (!digitalRead(pinTrigger))
         {
-            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被觸發了~");
-            d = 105;
+            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被實體按鈕觸發了~");
             digitalWrite(pinLED, 0);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
+            myServo.write(startdeg);
             _DELAY_MS(waittim);
-            d -= 96;
             digitalWrite(pinLED, 1);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
+            myServo.write(enddeg);
             _DELAY_MS(waittim);
         }
-        _DELAY_MS(100);
+        _DELAY_MS(50);
     }
 }
 
@@ -110,26 +103,66 @@ void BallDispenser(uint16_t time)
         _DELAY_MS(5000);
     }
     */
+    /*
+        // Include the Arduino Stepper Library
 
-    // Include the Arduino Stepper Library
+        // Number of steps per output rotation
+        const int stepsPerRevolution = 200;
 
-    // Number of steps per output rotation
-    const int stepsPerRevolution = 200;
+        // Create Instance of Stepper library
+        Stepper myStepper(200, 19, 18, 5, 17);
 
-    // Create Instance of Stepper library
-    Stepper myStepper(200, 19, 18, 5, 17);
+        // set the speed at 60 rpm:
+        myStepper.setSpeed(60);
+        // initialize the serial port:
+        Serial.begin(115200);
 
-    // set the speed at 60 rpm:
-    myStepper.setSpeed(60);
-    // initialize the serial port:
-    Serial.begin(115200);
+        while (1)
+        {
+            // step one revolution in one direction:
+            // Serial.println("clockwise");
+            myStepper.step(200);
+            delay(5000);
+        }
+        */
 
+    const uint8_t pinServo = 13, pinLED = 4, pinTrigger = 15;
+    const uint16_t waittim = 600;
+    const int16_t startdeg = 90;
+    const int16_t enddeg = 150;
+    if (time > 0)
+    {
+        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機被函數觸發了~");
+        for (uint16_t i = 0; i < time; i++)
+        {
+            digitalWrite(pinLED, 0);
+            myServo.write(enddeg);
+            _DELAY_MS(waittim);
+            digitalWrite(pinLED, 1);
+            myServo.write(startdeg);
+            _DELAY_MS(waittim);
+        }
+        return;
+    }
+
+    myServo.attach(pinServo); //   Servo is connected to digital pin 9
+    myServo.write(startdeg);
+    pinMode(pinLED, OUTPUT);
+    pinMode(pinTrigger, INPUT_PULLUP);
     while (1)
     {
-        // step one revolution in one direction:
-        // Serial.println("clockwise");
-        myStepper.step(200);
-        delay(5000);
+        while (!digitalRead(pinTrigger))
+        {
+            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機被實體按鈕觸發了~");
+
+            digitalWrite(pinLED, 0);
+            myServo.write(enddeg);
+            _DELAY_MS(waittim);
+            digitalWrite(pinLED, 1);
+            myServo.write(startdeg);
+            _DELAY_MS(waittim);
+        }
+        _DELAY_MS(50);
     }
 }
 /**
@@ -424,6 +457,7 @@ void taskWeaponLight(void *pvParam)
     delete otrdoc;
     // JsonObject *prtObj = (JsonObject *)pvParam;
     const uint8_t pinOut[]{25, 26, 27, 33};
+
     Adafruit_NeoPixel strip(docWeaponLight.containsKey("Length") ? docWeaponLight["Length"] : 11,
                             docWeaponLight.containsKey("Pin") ? docWeaponLight["Pin"] : 15,
                             NEO_GRB + NEO_KHZ800);
@@ -435,59 +469,137 @@ void taskWeaponLight(void *pvParam)
         ledcAttachPin(pinOut[i], i);
         ledcWrite(i, 0);
     }
-    // serializeJson(docWeaponLight, Serial);
-    uint8_t type = docWeaponLight["Type"].as<uint8_t>();
+    uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
     uint32_t color = 0;
-    uint16_t cycle = docWeaponLight["Color_Cycle"].as<uint16_t>();
-    uint8_t brightness = docWeaponLight["Brightness"].as<uint16_t>();
+    uint8_t num = 0;
+    uint32_t batterTimer = 0;
+    const uint16_t setCycle = 10000;
     while (1)
     {
-        switch (type)
+        switch (id)
         {
-        case 1 ... 6:
+            /*
+     30~39 杖
+     40~49 矛
+     50~59 錘
+     60~69 鞭
+     70~79 劍
+     80~89 斧
+     */
+        case 30 ... 89:
+        {
+            uint16_t limitPWM[] = {1200, 1200, 1200};
+            switch (id)
+            {
+            case 50 ... 59:
+                limitPWM[0] = 500;
+                limitPWM[1] = 2500;
+                break;
+            case 60 ... 69:
+                limitPWM[0] = 2500;
+                limitPWM[1] = 2500;
+                limitPWM[2] = 2500;
+                break;
+            case 70 ... 79:
+                limitPWM[0] = 1600;
+                limitPWM[1] = 1800;
+                limitPWM[2] = 2500;
+                break;
+            case 80 ... 89:
+                limitPWM[0] = 800;
+                limitPWM[1] = 10;
+                limitPWM[2] = 700;
+                break;
+            }
             switch (docWeaponLight["Level"].as<uint8_t>())
             {
             case 1:
-                ledcWrite(0, 1000);
+            {
                 ledcWrite(1, 0);
                 ledcWrite(2, 0);
                 ledcWrite(3, 0);
-                break;
-            case 2:
-                ledcWrite(0, 1000);
-                ledcWrite(1, 1000);
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-                break;
-            case 3:
-                ledcWrite(0, 1000);
-                ledcWrite(1, 1000);
-                ledcWrite(2, 1000);
-                ledcWrite(3, 0);
-
-                break;
-            case 99:
-            {
-                static uint8_t num = 0;
                 switch (num)
                 {
+                case 1 ... 5:
+                case 16 ... 20:
+                    for (uint16_t i = 0; i < strip.numPixels(); i++)
+                        strip.setPixelColor(i, strip.Color(255, 0, 0));
+                    ledcWrite(0, limitPWM[0]);
+                    break;
+                case 6 ... 15:
+                case 21 ... 60:
+                    for (uint16_t i = 0; i < strip.numPixels(); i++)
+                        strip.setPixelColor(i, 0);
+                    ledcWrite(0, 0);
+                    break;
+                default:
+                    num = 0;
+                    break;
+                }
+                num++;
+            }
+            break;
+            case 2:
+            {
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                int16_t cycle = 2000;
+                int16_t cycle_color = 1500;
+                int16_t brightness = 255;
+                uint16_t val = map(millis() % cycle, 0, cycle, 0, strip.numPixels() * 2);
+                color = setRainbowRGB(map(millis() % cycle_color, 0, cycle_color, 0, 1536));
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                {
+                    uint32_t ws2812color = color;
+                    uint8_t b = (i <= val && val - i <= strip.numPixels() ? map(val - i, 0, strip.numPixels(), brightness, 0) : 0);
+                    ws2812color = setBrightnessRGB(ws2812color, b);
+                    strip.setPixelColor(i, ws2812color);
+                }
+                uint16_t ledval = millis() % cycle;
+                for (uint8_t i = 0; i < 2; i++)
+                {
+                    if (ledval <= cycle / 2)
+                        brightness = map(ledval, 0, cycle / 2, 0, limitPWM[i]);
+                    else
+                        brightness = map(ledval, cycle / 2, cycle, limitPWM[i], 0);
+                    ledcWrite(i, brightness);
+                }
+            }
+            break;
+            case 3:
+            {
+                int16_t cycle = 1000;
+                int16_t brightness = 155;
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                {
+                    color = setRainbowRGB((map(millis() % cycle, 0, cycle, 1536, 0) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                    color = setBrightnessRGB(color, brightness);
+                    strip.setPixelColor(i, color);
+                }
+                for (uint8_t i = 0; i < 3; i++)
+                    ledcWrite(i, limitPWM[i]);
+            }
+            break;
+            case 99:
+            {
+                switch (num)
+                { // 20=1.8 2000=2.4
                 case 0 ... 10:
-                    ledcWrite(0, 1000);
+                    ledcWrite(0, limitPWM[0]);
                     ledcWrite(1, 0);
                     ledcWrite(2, 0);
                     ledcWrite(3, 0);
-
                     break;
                 case 11 ... 20:
-                    ledcWrite(0, 1000);
-                    ledcWrite(1, 1000);
+                    ledcWrite(0, limitPWM[0]);
+                    ledcWrite(1, limitPWM[1]);
                     ledcWrite(2, 0);
                     ledcWrite(3, 0);
                     break;
                 case 21 ... 30:
-                    ledcWrite(0, 1000);
-                    ledcWrite(1, 1000);
-                    ledcWrite(2, 1000);
+                    ledcWrite(0, limitPWM[0]);
+                    ledcWrite(1, limitPWM[1]);
+                    ledcWrite(2, limitPWM[2]);
                     ledcWrite(3, 0);
                     break;
                 default:
@@ -497,24 +609,50 @@ void taskWeaponLight(void *pvParam)
                 num++;
                 for (uint16_t i = 0; i < strip.numPixels(); i++)
                 {
-                    color = setRainbowRGB((map(millis() % cycle, 0, cycle, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
-                    color = setBrightnessRGB(color, brightness);
+                    color = setRainbowRGB((map(millis() % 1000, 0, 1000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                    color = setBrightnessRGB(color, 10);
                     strip.setPixelColor(i, color);
                 }
             }
             break;
             default:
+            {
                 ledcWrite(0, 0);
                 ledcWrite(1, 0);
                 ledcWrite(2, 0);
                 ledcWrite(3, 0);
                 for (uint16_t i = 0; i < strip.numPixels(); i++)
                     strip.setPixelColor(i, 0);
-                break;
+            }
+            break;
             }
             strip.show();
-            break;
+        }
         }
         _DELAY_MS(docWeaponLight["DelayTime"].as<uint16_t>());
+        /**
+         * @brief 每10秒送目前電池電壓值
+         *
+         */
+        // _E2JS(_BATTERY_VAL) = roundf(analogRead(32) * 0.0017465437788018 * 100) / 100;
+        if (millis() > batterTimer + setCycle)
+        {
+            float number = analogRead(32) * 0.0017465437788018; // 假设这是你的浮点数值
+            int roundedNumber = round(number * 100);            // 将浮点数乘以100后四舍五入为整数
+            _E2JS(_BATTERY_VAL) = roundedNumber / 100.0;        // 将四舍五入后的整数除以100得到保留两位小数的浮点数
+            const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
+            JsonDocument doc;
+            JsonArray array = doc.to<JsonArray>();
+            array.add("MissGame");
+            JsonObject param1 = array.createNestedObject();
+            param1["battery"] = roundedNumber / 100.0; //?不知為何 _E2JS(_BATTERY_VAL)還原會怪怪的
+            param1["id"] = _E2JS(_MODULE_ID).as<uint16_t>();
+            
+            String output;
+            serializeJson(doc, output);
+            // serializeJsonPretty(doc, Serial);
+            socketIO.sendEVENT(output);            
+            batterTimer = millis();
+        }
     }
 }
