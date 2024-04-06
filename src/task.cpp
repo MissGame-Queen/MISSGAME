@@ -14,23 +14,22 @@ void CoinDispenser(uint16_t time)
 {
     const uint8_t pinServo = 13, pinLED = 4, pinTrigger = 15;
     const uint16_t waittim = 600;
-    const int16_t startdeg = 105;
-    const int16_t enddeg = 96;
+    const int16_t startdeg = _E2JS(_SEVER_DEG_START).as<uint8_t>();
+    const int16_t enddeg = _E2JS(_SEVER_DEG_END).as<uint8_t>();
     if (time > 0)
     {
         _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被函數觸發了~");
         for (uint16_t i = 0; i < time; i++)
         {
             digitalWrite(pinLED, 0);
-            myServo.write(startdeg);
+            myServo.write(enddeg);
             _DELAY_MS(waittim);
             digitalWrite(pinLED, 1);
-            myServo.write(enddeg);
+            myServo.write(startdeg);
             _DELAY_MS(waittim);
         }
         return;
     }
-
     myServo.attach(pinServo); //   Servo is connected to digital pin 9
     myServo.write(startdeg);
     pinMode(pinLED, OUTPUT);
@@ -41,10 +40,10 @@ void CoinDispenser(uint16_t time)
         {
             _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被實體按鈕觸發了~");
             digitalWrite(pinLED, 0);
-            myServo.write(startdeg);
+            myServo.write(enddeg);
             _DELAY_MS(waittim);
             digitalWrite(pinLED, 1);
-            myServo.write(enddeg);
+            myServo.write(startdeg);
             _DELAY_MS(waittim);
         }
         _DELAY_MS(50);
@@ -57,79 +56,12 @@ void CoinDispenser(uint16_t time)
  */
 void BallDispenser(uint16_t time)
 {
-    /*
-    const uint8_t pinStepMotor[]{19, 18, 5, 17};
-    const uint8_t pinLED = 4;
-    const uint8_t pinTrigger = 15;
-    const uint16_t waittim = 500;
-    const uint8_t stepValue[]{B1110, B1010, B1011, B1001, B1101, B0101, B0111, B0110};
-    if (time > 0)
-    {
-        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被觸發了~");
-        for (uint16_t i = 0; i < time; i++)
-        {
-            int16_t d = 103;
-            digitalWrite(pinLED, 0);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
-            _DELAY_MS(waittim);
-            d -= 96;
-            digitalWrite(pinLED, 1);
-            myServo.write(d); //   Rotate servo  clockwise
-            // Serial.println(d);
-            _DELAY_MS(waittim);
-        }
-        return;
-    }
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機模式~");
-
-    pinMode(pinLED, OUTPUT);
-    pinMode(pinTrigger, INPUT_PULLUP);
-    for (size_t i = 0; i < sizeof(pinStepMotor); i++)
-    {
-        pinMode(pinStepMotor[i], OUTPUT);
-        digitalWrite(pinStepMotor[i], 1);
-    }
-    while (1)
-    {
-
-        for (size_t j = 0; j < 400; j++)
-        {
-            for (size_t i = 0; i < sizeof(pinStepMotor); i++)
-                digitalWrite(pinStepMotor[i], stepValue[j % 8] & (1 << i));
-            //Serial.println(j);
-            _DELAY_MS(5);
-        }
-        _DELAY_MS(5000);
-    }
-    */
-    /*
-        // Include the Arduino Stepper Library
-
-        // Number of steps per output rotation
-        const int stepsPerRevolution = 200;
-
-        // Create Instance of Stepper library
-        Stepper myStepper(200, 19, 18, 5, 17);
-
-        // set the speed at 60 rpm:
-        myStepper.setSpeed(60);
-        // initialize the serial port:
-        Serial.begin(115200);
-
-        while (1)
-        {
-            // step one revolution in one direction:
-            // Serial.println("clockwise");
-            myStepper.step(200);
-            delay(5000);
-        }
-        */
-
     const uint8_t pinServo = 13, pinLED = 4, pinTrigger = 15;
     const uint16_t waittim = 600;
-    const int16_t startdeg = 90;
-    const int16_t enddeg = 150;
+    // const int16_t startdeg = 90;
+    // const int16_t enddeg = 150;
+    const int16_t startdeg = _E2JS(_SEVER_DEG_START).as<uint8_t>();
+    const int16_t enddeg = _E2JS(_SEVER_DEG_END).as<uint8_t>();
     if (time > 0)
     {
         _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機被函數觸發了~");
@@ -647,11 +579,11 @@ void taskWeaponLight(void *pvParam)
             JsonObject param1 = array.createNestedObject();
             param1["battery"] = roundedNumber / 100.0; //?不知為何 _E2JS(_BATTERY_VAL)還原會怪怪的
             param1["id"] = _E2JS(_MODULE_ID).as<uint16_t>();
-            
+
             String output;
             serializeJson(doc, output);
             // serializeJsonPretty(doc, Serial);
-            socketIO.sendEVENT(output);            
+            socketIO.sendEVENT(output);
             batterTimer = millis();
         }
     }

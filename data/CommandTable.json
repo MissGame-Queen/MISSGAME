@@ -1,6 +1,6 @@
 {
   "STA_SSID": {
-    "Default": "MissGame_B2",
+    "Default": "MissGAME_SOG",
     "Description": " 想連接的WIFI名稱"
   },
   "STA_PASSWORD": {
@@ -36,7 +36,7 @@
     "Description": " MQTT服務器網址(localhost.local)"
   },
   "SOCKETIO_URL": {
-    "Default": "192.168.1.110",
+    "Default": "192.168.0.8",
     "Description": " SocketIO伺服器網址(localhost.local)"
   },
   "MQTT_CLIENT_NAME": {
@@ -107,7 +107,7 @@
     "Description": " MQTT的loop時間(ms)"
   },
   "_SOCKETIO_PORT": {
-    "Default": 3000,
+    "Default": 1337,
     "Register": 12,
     "Description": " SocketIO端口"
   },
@@ -121,9 +121,19 @@
     "Register": 14,
     "Description": " 模組在環境中唯一ID"
   },
+  "_SEVER_DEG_START": {
+    "Default": 6,
+    "Register": 15,
+    "Description": " 伺服馬達初始角度"
+  },
+  "_SEVER_DEG_END": {
+    "Default": 110,
+    "Register": 16,
+    "Description": " 伺服馬達結束角度"
+  },
   "_DATANUM": {
     "Default": 0,
-    "Register": 15,
+    "Register": 17,
     "Description": ""
   }
 }

@@ -284,8 +284,9 @@ void mysocketIOEvent(JsonDocument *doc)
       }
     }
   }
+  else if(eventName=="Alive");
   else
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此事件: %s!\n", eventName.c_str());
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此事件: %s\n", eventName.c_str());
 }
 
 void setup()
