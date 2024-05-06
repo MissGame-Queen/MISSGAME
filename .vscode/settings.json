@@ -23,6 +23,7 @@
         "bitset": "cpp",
         "fstream": "cpp",
         "cmath": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "main.h": "c"
     }
 }

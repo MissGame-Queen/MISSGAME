@@ -117,23 +117,28 @@
     "Description": " SocketIO端口的loop時間(ms)"
   },
   "_MODULE_ID": {
-    "Default": 99,
+    "Default": 999,
     "Register": 14,
     "Description": " 模組在環境中唯一ID"
   },
+  "_TESTMODE": {
+    "Default": 1,
+    "Register": 15,
+    "Description": "開機是否進入測試模式"
+  },
   "_SEVER_DEG_START": {
     "Default": 6,
-    "Register": 15,
+    "Register": 16,
     "Description": " 伺服馬達初始角度"
   },
   "_SEVER_DEG_END": {
     "Default": 110,
-    "Register": 16,
+    "Register": 17,
     "Description": " 伺服馬達結束角度"
   },
   "_DATANUM": {
     "Default": 0,
-    "Register": 17,
+    "Register": 18,
     "Description": ""
   }
 }

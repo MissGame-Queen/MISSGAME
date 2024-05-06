@@ -181,192 +181,27 @@ String myCmdTable_Json(JsonObject obj)
 void myMQTTsubscribe(PubSubClient *MQTTClient) { ; }
 void mysocketIOEvent(JsonDocument *doc)
 {
-  JsonArray args = doc->as<JsonArray>();
-  String eventName = args[0];
-
-  if (eventName == "MissGame")
-  {
-    uint16_t id = 0;
-    if (!args[1].containsKey("ids"))
-    {
-      args[1].createNestedArray("ids");
-      args[1]["ids"].add(args[1]["id"].as<uint16_t>());
-    }
-    for (JsonVariant item : args[1]["ids"].as<JsonArray>())
-    {
-      id = item.as<uint16_t>();
-
-      // FIXME 補上自製模組的運作方法
-      /**
-       @brief id表
-       1~4 出幣機
-       5~6 出球機
-       7~9 計時器
-       10~19 bricks
-       20~29 音效播放模組
-       30~39 杖
-       40~49 矛
-       50~59 錘
-       60~69 鞭
-       70~79 劍
-       80~89 斧
-       */
-      if (id == _E2JS(_MODULE_ID).as<uint16_t>())
-      {
-        switch (id)
-        {
-        case 1 ... 4:
-        {
-          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
-          uint16_t value = args[1]["value"].as<uint16_t>();
-          if (value > 0) // 如果是0會變成迴圈
-            CoinDispenser(value);
-        }
-        break;
-        case 5 ... 6:
-        {
-          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
-          uint16_t value = args[1]["value"].as<uint16_t>();
-          if (value > 0) // 如果是0會變成迴圈
-            BallDispenser(value);
-        }
-        break;
-        case 7 ... 9:
-        {
-          if (args[1].containsKey("value"))
-          {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
-            // xQueueSend(queueTimer, &seconds, 0);
-            Timer_newSecond = args[1]["value"].as<String>();
-          }
-          if (args[1].containsKey("status"))
-          {
-            Timer_status = args[1]["status"].as<uint8_t>();
-          }
-        }
-        break;
-        case 10 ... 19:
-          break;
-        case 20 ... 29:
-          break;
-        case 30 ... 89:
-          if (args[1].containsKey("value"))
-          {
-            docWeaponLight["Level"] = args[1]["value"].as<uint8_t>();
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id, args[1]["value"].as<uint8_t>());
-          }
-          if (args[1].containsKey("battery"))
-          {
-            const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
-            JsonDocument doc;
-            JsonArray array = doc.to<JsonArray>();
-
-            // add evnet name
-            // Hint: socket.on('event_name', ....
-            array.add("event_name");
-
-            // add payload (parameters) for the event
-            JsonObject param1 = array.createNestedObject();
-            param1["now"] = _E2JS(_BATTERY_VAL).as<float>();
-
-            // JSON to String (serializion)
-            String output;
-            serializeJson(doc, output);
-
-            // Send event
-            socketIO.sendEVENT(output);
-          }
-          break;
-        default:
-          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
-          break;
-        }
-      }
-    }
-  }
-  else if(eventName=="Alive");
-  else
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此事件: %s\n", eventName.c_str());
+  ;
 }
 
 void setup()
 {
+  const uint8_t pinOut[]{25, 26, 27, 33};
+  for (size_t i = 0; i < sizeof(pinOut); i++)
+  {
+    ledcSetup(i, 100, 12);
+    ledcAttachPin(pinOut[i], i);
+    ledcWrite(i, 0);
+  }
+
   Serial.begin(115200);
+
   // taskTimer(1010);
   Wire.begin();
   ConfigInit();
-  RTOS();
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
-  switch (id)
-  {
-  case 1 ... 4:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機模式~");
-    CoinDispenser(0);
-    break;
-  case 5 ... 6:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機模式~");
-    BallDispenser(0);
-    break;
-  case 7 ... 9:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
-    xTaskCreatePinnedToCore(taskTimer,
-                            "taskTimer",
-                            10240,
-                            NULL,
-                            1,
-                            NULL,
-                            0);
-    break;
-  case 10 ... 19:
-    break;
-  case 20 ... 29:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
-    SoundPlayer();
-    break;
-  case 30 ... 39:
-  case 40 ... 49:
-  case 60 ... 89:
-  {
-    JsonDocument *doc = new JsonDocument;
-    (*doc)["Length"] = 11;
-    (*doc)["Pin"] = 15;
-    (*doc)["Level"] = 99;
-    (*doc)["DelayTime"] = 50;
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
-    xTaskCreatePinnedToCore(taskWeaponLight,
-                            "taskWeaponLight",
-                            20480,
-                            (void *)doc,
-                            10,
-                            NULL,
-                            0);
-  }
-  break;
-  case 50 ... 59:
-  {
-    JsonDocument *doc = new JsonDocument;
-    (*doc)["Length"] = 35;
-    (*doc)["Pin"] = 15;
-    (*doc)["Level"] = 99;
-    (*doc)["DelayTime"] = 50;
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
-    xTaskCreatePinnedToCore(taskWeaponLight,
-                            "taskWeaponLight",
-                            10240,
-                            (void *)doc,
-                            10,
-                            NULL,
-                            0);
-  }
-  break;
-  default:
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
-    break;
-  }
+  RTOS();
 }
-
 void loop()
 {
-
 }
