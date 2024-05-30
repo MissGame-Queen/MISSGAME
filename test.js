@@ -1,57 +1,56 @@
-
-[formula]String(A3).match(/([^-]{2})(?:-.*?)/g)[0].replace("-","")+","+String(A3).match(/([^-]{2})(?:-.*?)/g)[1].replace("-","")+","+String(A3).match(/([^-]{2})(?:-.*?)/g)[2].replace("-","")[/formula]
-
-config.txt#型號:FQSD512-PR DMX512/RS485/232 V3.6.0
-#功能參數設定檔
-#從V3.2版開始,增加了USB-SD卡讀卡機功能,USB連接電腦或手機平板後：插拔一次SD卡，設備將進入USB讀卡機模式！ 或用FQ512軟體設置
-#註：檔案'config.txt',必須放在SD卡根目錄下,如不存在,控制器上電會自動產生一個預設的設定檔
-#這設定檔格式說明：1,註釋，必須以「#」字元開頭。 2,參數項目格式:'功能關鍵字標識=數值;',參數項必須以';'分號結束,且不能有空格.
-#如SD卡根目錄不存在'Show','Scene','record'這3個資料夾,控制器上電會自動偵測並產生
-#'Show'資料夾:必須放副檔名為'*.shw'的FQ512控台軟體編的程式文件
-#'Scene'資料夾:必須放副檔名為'*.dmx'的FQ512控台軟體編的特定場景文件
-#'record'資料夾:必須放置擴展名為'*.drd'的程式文件，錄製檔案可用FQ512軟體錄製、其他燈光軟體插件錄製或控制器自錄製
-#---------------
-#
-BitRate=115200; #波特率:600,1200,2400,4800,9600,19200,38400,43000,56000,57600,115200
-#128000,230400,256000,460800,921600,1382400,自訂
-Parity=0; #校驗,取值:0=N,1=E,2=O
-StopBits=1; #1,2
-Protocol=1; #0=FQBUS協定,1=MODBUS RTU協定,2=自訂協定,3=DMX512控制4通道模式
-Addr=1; #本機位址碼:1~254 ,0=廣播位址;如是DMX512控制模式,為dmx位址,addr=1~512
-CheckSum_en=1; #1=通訊校驗與檢查啟用(建議),0=禁止(方便串列埠調試)
-Ch2ChangePlay=0;#0=DMX通道2值變更不切換程序，1=DMX通道2值變更切換程序
-#------>DMX512控制協定：CH1=播放/暫停/停止，CH2：程式名稱或號，CH3:特定場景號，CH4:盒子重新啟動控制
-Dmx_Uart_en=0; #DMX轉RS232_485開關Protocol=FQBUS協定時有效,0=關從機模式,1=開主機模式
-StartCh=1; #DMX轉RS232_485開始頻道
-SumCh=16; #DMX轉RS232_485頻道數
-SendInterval=50; #DMX轉RS232_485發送時間間隔
-AutoSend=2; #0=間隔發送,1=變更值時發送，2=自適應間隔發送
-#-----------------
-Record_en=0; #1=開啟錄製功能,0=不開啟錄製功能(防誤操作錄製取代檔)
-SampleFrq=40; #錄製程式的取樣頻率設置，設越大檔案越大,效果也越好,可依實際設定。 必須為:1,2,10,20,25,40,50(Hz)
-RecStopTimer=0; #0=不開啟錄製定時停止,如60=開啟錄製60秒後自動停止錄製並儲存檔案(以秒為單位:1分鐘等於60秒)
-ComReturn_en=0; #1=使能com口返回應答資料,0=不是讀取指令不回傳回應
-#----------------
-IR_en=1; #1=可用紅外線遙控，0=停用遙控(以防其他人誤操作)
-Keyboard_en=0; #1=可用鍵盤,0=停用PS2鍵盤
-KeyInOut_en=0; #1=遙控可設定DMX in或out模式，0=遙控無法設定輸入輸出
-ScanFile_en=1; #1=啟動掃描燈光程式檔案清單(啟動慢一點),0=不掃描(用檔案名稱選擇程式時可關閉)
-WIN8_WDT_en=0; #1=啟動WIN8以上系統的看門狗模式;0=自動
-SelSDPC=2; #0=自動選擇PC或SD卡模式,1=鎖定PC控制模式,2=鎖定SD卡播放模式
-InOutMode=0; #0=設定為輸出模式，1=DMX1設定為輸入模式
-RS485_EN=1; #0=設定為RS232高速模式，1=RS485模式
-Key10Prg_EN=0; #0=按鍵輸入3位數字檔案名稱播控程式模式，1=10個按鍵直接播控10個程式模式(按鍵控制錄製程式無效)
-PrgNumSave_EN=0;#0=不記憶按鍵播控的程序，1=下次上電播放最後一次播控的程序
-FadeIn=1; #播放shw程式時:0=第1次播放第1步無漸變,1=第1次播放的第1步開漸變
-#----------------
-PrgNameType=1; #0=依檔案存的順序序號選擇程式,即複製到SD卡的順序(數字:0~999),1=依檔案名稱(上下一個程式選擇失效)
-PrgType=1; #0=選擇播放錄製的'*.drd'程式文件，1=選擇播放FQ512控台編的'*.shw'程序
-LoadScene=0; #上電載入x號特定場景並輸出(x=0到9,註：檔案格式為*.dmx ,檔案名稱為000~009,如不存在輸出黑場)
-PauseScene=0; #定義:串口暫停場景指令呼叫的場景0~9,檔案格式為*.dmx
-StopScene=1; #定義:串列埠停止場景指令呼叫的場景0~9
-SetChValLock=0; #0=串口直控通道時無鎖定保護通道，1=串口直控通道時鎖定通道不受drd播放器控制
-SetCh0Release=0;#0=串口直控通道值為0時不釋放通道，1=串口直控通道直為0時釋放通道受drd播放器控制
-#--------->如PrgNameType=1,按檔案名稱選擇程式播放,只支援單一程式播放或循環單個
-PlayMode=2; #0=循環所有程式,1=播放單一程式,2=循環單一程式,3=順序播放所有程式,4=循環隨機播放
-AutoPlay=0; #0=上電不自動播放，1=上電自動播放程式(檔名模式,預設自動從'000.shw'或'000.drd'開始播放)
-ChangeNumToSave=0;#改變這數值(0~255),可啟動儲存1次SD卡設定參數到記憶體裡,這樣以後DMX轉485或485轉DMX不用接SD卡
+["h1_Trigger",
+"Trigger_重置斜角巷",
+"AutoSocketIo_斜角巷進場音效",
+"Trigger_小天使按下斜角巷開始按鈕",
+"Trigger_小天使突發狀況入場斜角巷",
+"Trigger_魔果店門鈴",
+"Trigger_奇獸店門鈴",
+"Trigger_長袍店門鈴",
+"Trigger_神器店門鈴",
+"Trigger_長袍店門鈴順序機關正確",
+"h1_GameEvent",
+"GameEvent_GE_玩家遲到",
+"GameEvent_GE_玩家進場",
+"GameEvent_GE_遊戲開始",
+"GameEvent_GE_斜角拉鈴機關完成",
+"h1_GameVariable",
+"h2_第一組武器",
+"AutoGameVariable_AGV_手動登錄杖30",
+"AutoGameVariable_AGV_手動登錄矛40",
+"AutoGameVariable_AGV_手動登錄槌50",
+"AutoGameVariable_AGV_手動登錄鍊60",
+"AutoGameVariable_AGV_手動登錄劍70",
+"AutoGameVariable_AGV_手動登錄斧80",
+"h2_第二組武器",
+"AutoGameVariable_AGV_手動登錄杖31",
+"AutoGameVariable_AGV_手動登錄矛41",
+"AutoGameVariable_AGV_手動登錄槌51",
+"AutoGameVariable_AGV_手動登錄鍊61",
+"AutoGameVariable_AGV_手動登錄劍71",
+"AutoGameVariable_AGV_手動登錄斧81",
+"h2_第三組武器",
+"AutoGameVariable_AGV_手動登錄杖32",
+"AutoGameVariable_AGV_手動登錄矛42",
+"AutoGameVariable_AGV_手動登錄槌52",
+"AutoGameVariable_AGV_手動登錄鍊62",
+"AutoGameVariable_AGV_手動登錄劍72",
+"AutoGameVariable_AGV_手動登錄斧82",
+"h2_第四組武器",
+"AutoGameVariable_AGV_手動登錄杖33",
+"AutoGameVariable_AGV_手動登錄矛43",
+"AutoGameVariable_AGV_手動登錄槌53",
+"AutoGameVariable_AGV_手動登錄鍊63",
+"AutoGameVariable_AGV_手動登錄劍73",
+"AutoGameVariable_AGV_手動登錄斧83",
+"h1_GameVariable",
+"AutoGameVariable_AGV_觸發靈石升級武器_斜角巷",
+"AutoGameVariable_AGV_觸發總COIN數+1_斜角巷",
+"GameVariable_拉鈴機關下一個位置",
+"GameVariable_斜角巷參數",
+"GameVariable_斜角巷鍊",
+"GameVariable_斜角巷矛",
+"GameVariable_斜角巷槌",
+"GameVariable_斜角巷杖",
+"GameVariable_斜角巷斧",
+"GameVariable_斜角巷劍",
+"GameVariable_斜角巷COIN"]

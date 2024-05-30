@@ -10,14 +10,20 @@ if (arrData.hasOwnProperty("playerDodge")) {
         jsonReturn["魔龍累計擊中"] = parseInt(jsonReturn["魔龍累計擊中"]) + arrData.playerDodge.hit
     else
         jsonReturn["魔龍累計擊中"] = arrData.playerDodge.hit;
-    if (jsonReturn.hasOwnProperty("魔龍累計閃躲"))
-        jsonReturn["魔龍累計閃躲"] = parseInt(jsonReturn["魔龍累計閃躲"]) + arrData.playerDodge.miss
-    else
-        jsonReturn["魔龍累計閃躲"] = arrData.playerDodge.miss;
-    let json = {
-        "value": arrData.playerDodge.miss
+
+    if (arrData.playerDodge.miss > 0) {
+        let json = {
+            "value": 2//arrData.playerDodge.miss
+        }
+        variableTable.name["GV_魔龍閃躲出球"]?.save("value", JSON.stringify(json));
+        if (jsonReturn.hasOwnProperty("魔龍累計閃躲")) {
+            jsonReturn["魔龍累計閃躲"] = parseInt(jsonReturn["魔龍累計閃躲"]) + arrData.playerDodge.miss
+        }
+        else {
+            jsonReturn["魔龍累計閃躲"] = arrData.playerDodge.miss;
+        }
     }
-    variableTable.name["GV_魔龍閃躲出球"]?.save("value", JSON.stringify(json));
+
 
 }
 if (arrData.hasOwnProperty("magicStar")) {

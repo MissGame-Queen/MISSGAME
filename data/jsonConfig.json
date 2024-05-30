@@ -1,0 +1,22 @@
+{
+    "WIFI_STA": {
+        "Description": "STA模式的參數",
+        "Default": [
+            {
+                "SSID": "MissGAME_SOG",
+                "PASSWORD": "missgame"
+            },
+            {
+                "SSID": "我有WiFi你沒有~",
+                "PASSWORD": "88888888"
+            }
+        ]
+    },
+    "WIFI_AP": {
+        "Description": "AP模式的參數",
+        "Default": {
+            "SSID": "",
+            "PASSWORD": "00000000"
+        }
+    }
+}

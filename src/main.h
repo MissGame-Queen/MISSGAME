@@ -39,6 +39,10 @@ enum ModbusRegister
     _TESTMODE,        // 開機是否進入測試模式
     _SEVER_DEG_START, // 開始角度
     _SEVER_DEG_END,   // 結束角度
+    _LIGHT_0,         // 自定義亮度0
+    _LIGHT_1,         // 自定義亮度1
+    _LIGHT_2,         // 自定義亮度2
+    _LIGHT_3,         // 自定義亮度3
     _BATTERY_VAL,     // 電池電壓
     _DATANUM
 };

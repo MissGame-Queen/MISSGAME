@@ -121,8 +121,8 @@
     "Register": 14,
     "Description": " 模組在環境中唯一ID"
   },
-  "_TESTMODE": {
-    "Default": 1,
+  "_DEFAULT_MODE": {
+    "Default": 99,
     "Register": 15,
     "Description": "開機是否進入測試模式"
   },
@@ -136,9 +136,29 @@
     "Register": 17,
     "Description": " 伺服馬達結束角度"
   },
-  "_DATANUM": {
+  "_LIGHT_0": {
     "Default": 0,
     "Register": 18,
+    "Description": "自定義亮度0"
+  },
+  "_LIGHT_1": {
+    "Default": 0,
+    "Register": 19,
+    "Description": "自定義亮度1"
+  },
+  "_LIGHT_2": {
+    "Default": 0,
+    "Register": 20,
+    "Description": "自定義亮度2"
+  },
+  "_LIGHT_3": {
+    "Default": 0,
+    "Register": 21,
+    "Description": "自定義亮度3"
+  },
+  "_DATANUM": {
+    "Default": 0,
+    "Register": 22,
     "Description": ""
   }
 }
