@@ -337,7 +337,6 @@ void mysocketIOEvent(JsonDocument *doc)
 
 void setup()
 {
-
   const uint8_t pinOut[]{25, 26, 27, 33};
   for (size_t i = 0; i < sizeof(pinOut); i++)
   {

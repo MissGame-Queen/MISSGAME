@@ -8,7 +8,6 @@ tm tmTimer;
 
 uint16_t SoundPlayerLevel[2] = {0, 0};
 String SoundPlayerName[2] = {"", ""};
-SemaphoreHandle_t xMutexPCM5102 = xSemaphoreCreateMutex();
 Audio *audioPCM5102 = new Audio();
 QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueDFPlayer = xQueueCreate(1, sizeof(uint16_t));
@@ -78,29 +77,8 @@ void CoinDispenser(uint16_t time)
  */
 void taskBallDispenser(void *pvParam)
 {
-    Serial1.begin(115200, SERIAL_8N1, 22, 21);
-    /*
-    uint8_t dataWrite_MA[] = {0xFA, 0x01, 0x13, 0x88, 0};
-    uint16_t crc = 0;
-    for (uint8_t i = 0; i < sizeof(dataWrite_MA); i++)
-        crc += dataWrite_MA[i];
-    dataWrite_MA[sizeof(dataWrite_MA) - 1] = crc & 0xFF;
-    Serial1.write(dataWrite_MA, sizeof(dataWrite_MA));
-    _DELAY_MS(100);
-    while(Serial1.available());
-    Serial.printf("0x%02x,",Serial1.read());
-Serial.println();
-    uint8_t dataWrite_Protect[] = {0xFA, 0x01, 88, 0, 0};
-     crc = 0;
-    for (uint8_t i = 0; i < sizeof(dataWrite_Protect); i++)
-        crc += dataWrite_Protect[i];
-    dataWrite_Protect[sizeof(dataWrite_Protect) - 1] = crc & 0xFF;
-    Serial1.write(dataWrite_Protect, sizeof(dataWrite_Protect));
-    _DELAY_MS(100);
-    while(Serial1.available());
-    Serial.printf("0x%02x,",Serial1.read());
-Serial.println();
-*/
+    Serial1.begin(9600, SERIAL_8N1, 22, 21);
+
     pinMode(13, INPUT_PULLUP);
     uint16_t BallTime = 0;
     uint16_t BallTimeAdd = 0;
@@ -117,7 +95,7 @@ Serial.println();
         if (BallTime > 0)
         {
             bool dir = 0;
-            uint16_t speed = 100;
+            uint16_t speed = 50;
             uint8_t acc = 200;
             uint32_t pulses = 0x42A * BallTime;
             uint16_t dalayTime = 400;
@@ -138,16 +116,24 @@ Serial.println();
             {
                 uint8_t recallData[12];
                 for (uint8_t i = 0; i < 12 && Serial1.available(); i++)
+                {
                     recallData[i] = Serial1.read();
+                    Serial.printf("0x%02x,", recallData[i]);
+                    _DELAY_MS(5);
+                }
+                Serial.println();
                 if (recallData[0] == 0xFB &&
                     recallData[1] == 0x01 &&
                     recallData[2] == 0xFD &&
                     recallData[3] == 0x01 &&
                     recallData[4] == 0xFA)
+                {
                     BallTime = 0;
+                }
             }
         }
         _DELAY_MS(100);
+
         if (Serial1.available())
         {
             while (Serial1.available())
@@ -282,7 +268,6 @@ void taskPCM5102(void *pvParam)
         myDFPlayer.setTimeOut(500); // Set serial communictaion time out 500ms
         myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
         myDFPlayer.volume(30);
-        //myDFPlayer.enableLoopAll();
     }
     else
         _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 連線失敗!\n1.請重新檢查連線！\n2.請插入SD卡！\n");
@@ -324,32 +309,40 @@ audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
     uint16_t mp3Value = 0;
     while (1)
     {
-        if (xSemaphoreTake(xMutexPCM5102, portMAX_DELAY) == pdTRUE)
+
+        if (xQueueReceive(queuePCM5102, &mp3Name, 0) == pdPASS)
         {
-            if (xQueueReceive(queuePCM5102, &mp3Name, 0) == pdPASS)
+            if (mp3Name == "")
+            {
+                SoundPlayerLevel[0] = 0;
+                audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
+            }
+            else
             {
                 audio->connecttoFS(SD, mp3Name.c_str());
+                audio->loop();
             }
-            if (xQueueReceive(queueDFPlayer, &mp3Value, 0) == pdPASS)
-            {
-                if (mp3Value == 0){
-                    myDFPlayer.disableLoop();
-                    myDFPlayer.stop();
-                    }
+        }
+        if (SoundPlayerLevel[0] != 0)
+        {
+            if (!audio->isRunning())
+                SoundPlayerLevel[0] = 0;
+        }
+        audio->loop();
 
-                else{
-                    myDFPlayer.loop(mp3Value);
-                    myDFPlayer.enableLoop();
-                    }
-            }
-            vTaskDelay(1);
-            if (SoundPlayerLevel[0] != 0)
+        if (xQueueReceive(queueDFPlayer, &mp3Value, 0) == pdPASS)
+        {
+            if (state)
             {
-                if (!audio->isRunning())
-                    SoundPlayerLevel[0] = 0;
+                myDFPlayer.disableLoop();
+                myDFPlayer.stop();
+                if (mp3Value != 0)
+                {
+                    myDFPlayer.play(mp3Value);
+                    myDFPlayer.enableLoop();
+                }
             }
-            audio->loop();
-            xSemaphoreGive(xMutexPCM5102);
         }
         vTaskDelay(1);
     }

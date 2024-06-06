@@ -24,6 +24,8 @@
         "fstream": "cpp",
         "cmath": "cpp",
         "sstream": "cpp",
-        "main.h": "c"
+        "main.h": "c",
+        "algorithm": "cpp",
+        "template.h": "c"
     }
 }

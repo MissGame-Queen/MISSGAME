@@ -13,7 +13,6 @@ extern uint16_t Timer_status;
 extern JsonDocument docWeaponLight;
 extern uint16_t SoundPlayerLevel[2];
 extern String SoundPlayerName[2];
-extern SemaphoreHandle_t xMutexPCM5102;
 extern Audio *audioPCM5102;
 extern QueueHandle_t queuePCM5102;
 extern QueueHandle_t queueDFPlayer;
@@ -39,9 +38,5 @@ void myshiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val
 void taskFQ512(uint16_t cmd);
 uint16_t CRC_16(byte *data, uint16_t len, CRC16_parameter_t *CRC16_parameter);
 
-void audio_eof_mp3(const char *info)
-{ // end of file
-    Serial.print("eof_mp3     ");
-    Serial.println(info);
-}
+
 #endif
