@@ -73,6 +73,8 @@ uint32_t setBrightnessRGB(uint32_t value, uint8_t brightness)
 void setup()
 {
   Serial.begin(115200);
+  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "目前內存剩餘:%d\n", ESP.getFreeHeap());
+while(1);
   for (size_t i = 0; i < sizeof(pinfragments); i++)
     pinMode(pinfragments[i], INPUT_PULLUP);
   for (size_t i = 0; i < sizeof(pinRemoteControl); i++)

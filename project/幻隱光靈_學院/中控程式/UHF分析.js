@@ -30,7 +30,11 @@ try {
     if (str === "") str = "[]";
     arr_Fruits = JSON.parse(str ?? "[]");
 
+    let testStr="TEST\n";
     arrData.forEach(item => {
+
+        
+        
         //[ ]武器登錄系統
         if (item.ant === 1) {
             arrWeapon.forEach(itemWeapon => {
@@ -51,41 +55,26 @@ try {
             })
         }
         else if (item.ant === 2 || item.ant === 3 || item.ant === 4) {
-            //[ ]靈石登錄系統
-            arrSpiritStone.forEach(itemSpiritStone => {
-                let arr = [];
-                arr = JSON.parse(variableTable.name[itemSpiritStone]?.get("value"));
-                arr.forEach(itemEPC => {
-                    if (itemEPC === item.epc) {
-                        let jsonData = {
-                            "type": itemSpiritStone.substring(itemSpiritStone.length - 3),
-                            "epc": item.epc
-                        };
-                        if (item.ant === 2)
-                            arr_2.push(jsonData);
-                        else if (item.ant === 3) {
-                            arr_3.push(jsonData);
-
-                        }
-                        else if (item.ant === 4)
-                            arr_4.push(jsonData);
-                    }
-                })
-
-            })
             //[ ]水果登錄系統
+
             if (item.ant === 3) {
+                
+              
                 let strFruits = variableTable.name["EPC_魔藥室水果"]?.get("value");
                 if (strFruits !== "") {
                     let arr = JSON.parse(strFruits) ?? [];
+                    
                     arr.forEach(itemFruitsEPC => {
                         if (itemFruitsEPC === item.epc) {
                             arr_Fruits.push(item.epc);
                         }
                     });
                 }
+
             }
+
         }
+        
     });
 } catch (error) {
 
@@ -236,6 +225,8 @@ for (let i = 1; i < 5; i++) {
 
 //[v]水果登錄系統
 if (arr_Fruits.length > 0) {
+
+
     let str = variableTable.name["魔藥室已登記水果"]?.get("value") ?? "";
     let arr = [];
     if (str === "") str = "[]";
