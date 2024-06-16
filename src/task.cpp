@@ -567,7 +567,7 @@ void set74HC595(String newTime)
     SPI.endTransaction();
 }
 void doStyle1(int value)
-{ //           圓點點       左下       下面槓槓    右下        右上       上面的      左上      中間槓槓
+{ //           圓點點       左下       下面槓      右下        右上       上面的      左上      中間槓槓
     byte arr[8]{B00000001, B00001000, B00010000, B00100000, B01000000, B10000000, B00000100, B00000010};
     const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
     SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
