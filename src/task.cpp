@@ -15,12 +15,15 @@ void Basketball(void *pvParam)
 {
 
     const uint8_t pinIn[]{36, 39, 34, 35};
+    const uint8_t pinLock = 14;
     pinMode(pinST, OUTPUT);
     set74HC595("00");
     for (size_t i = 0; i < sizeof(pinIn); i++)
     {
         pinMode(pinIn[i], INPUT);
     }
+    pinMode(pinLock, OUTPUT);
+    digitalWrite(pinLock, HIGH);
 
     Adafruit_NeoPixel strip(2, pinLED, NEO_RGB + NEO_KHZ800);
 
@@ -30,6 +33,7 @@ void Basketball(void *pvParam)
     uint8_t value[] = {0, 0};
     JsonDocument doc;
     String strCMD = "";
+    uint8_t fraction = 30;
     enum status_e
     {
         Reset,
@@ -59,16 +63,7 @@ void Basketball(void *pvParam)
         }
     }
       */
-/*
-    while (true)
-    {
-        for (size_t i = 0; i < 6; i++)
-        {
-            doStyle1(i);
-            _DELAY_MS(500);
-        }
-    }
-*/
+
     while (1)
     {
 
@@ -96,6 +91,8 @@ void Basketball(void *pvParam)
         switch (status)
         {
         case Reset:
+            digitalWrite(pinLock, HIGH);
+            fraction = 30;
             set74HC595("00");
             for (uint8_t i = 0; i < strip.numPixels(); i++)
                 strip.setPixelColor(i, 0);
@@ -110,6 +107,35 @@ void Basketball(void *pvParam)
                 _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入等待狀態!");
                 first = false;
             }
+            // 待機動畫
+            static uint8_t valStyle = 0;
+            static uint8_t valStyle2 = 2;
+            static uint32_t timerStyle2 = 0;
+
+            // 如果開機時間大於上次紀錄的時間150ms
+            if (millis() > timer + 150)
+            {
+                timer = millis();
+                valStyle++;
+                doStyle1(valStyle);
+            }
+            if (millis() > timerStyle2 + 1000)
+            {
+                timerStyle2 = millis();
+                valStyle2++;
+            }
+            doStyle2(&strip, valStyle2, timerStyle2);
+            if (valStyle > 5)
+            {
+                valStyle = 0;
+            }
+            if (valStyle2 > 6)
+            {
+                valStyle2 = 2;
+            }
+            Serial.println("i");
+
+            // 如果按鈕按下
             static bool sw = false;
             if (!digitalRead(pinIn[0]) && !sw)
                 sw = true;
@@ -148,13 +174,6 @@ void Basketball(void *pvParam)
                 set74HC595(str);
                 if (num > 0)
                 {
-                    /*FIXME補上倒數動畫
-                    for (uint8_t i = 0; i < strip.numPixels(); i++)
-                    {
-                        strip.setPixelColor(i, num == 1 ? 255 : 0, num == 3 ? 255 : 0, num == 2 ? 255 : 0);
-                    }
-                    strip.show();
-                    */
                     num--;
                     timer = millis();
                 }
@@ -170,7 +189,6 @@ void Basketball(void *pvParam)
         break;
         case Start:
         {
-            static uint8_t fraction = 30;
             static bool sw = false;
             static bool isLimit = false;
             static uint32_t trmerLimit = 0;
@@ -250,10 +268,10 @@ void Basketball(void *pvParam)
                 else
                     status = Fail;
 
-                fraction = 30;
                 value[0] = 0;
                 value[1] = 0;
                 first = true;
+                timer = millis();
             }
         }
         break;
@@ -264,9 +282,28 @@ void Basketball(void *pvParam)
             {
                 strCMD = "{\"name\": \"/Finish.mp3\",\"value\": 3}";
                 xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
+                digitalWrite(pinLock, LOW);
+
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!json:%s\n", strCMD.c_str());
                 first = false;
-                _DELAY_MS(8000);
+            }
+            String str = "0" + String(fraction);
+            str = str.substring(str.length() - 2);
+            set74HC595(str);
+
+            strip.setPixelColor(0, 0, 255, 255);
+            strip.setPixelColor(1, 255, 255, 255);
+            strip.show();
+            _DELAY_MS(400);
+            set74HC595("  ");
+            strip.setPixelColor(0, 0, 0, 0);
+            strip.setPixelColor(1, 0, 0, 0);
+            strip.show();
+            _DELAY_MS(400);
+
+
+            if (millis() > timer + 8000)
+            {
                 status = Reset;
             }
         }
@@ -323,7 +360,8 @@ void FlyingShip(void *pvParam)
     const uint8_t ONLOCK = B00100000;
     const uint8_t OFFLOCK = B00000000;
     bool ifLock = true;
-    while(1);
+    while (1)
+        ;
     {
         switch (status)
         {
@@ -342,7 +380,7 @@ void FlyingShip(void *pvParam)
                 mcp.writeGPIOA((1 << j) + (ifLock ? ONLOCK : OFFLOCK));
                 _DELAY_MS(10);
                 uint8_t data = mcp.readGPIOB() ^ 0xFF;
-                //每個port讀取
+                // 每個port讀取
                 for (uint8_t i = 0; i < 6; i++)
                 { // 如果檢測到磁簧
                     if (data & (1 << i))
@@ -521,14 +559,16 @@ void set74HC595(String newTime)
         uint8_t data = bitNumber[i < 2 ? 0 : 1][str[i] - '0'];
         if (str[i] == '-')
             data = B00000010;
+        if (str[i] == ' ')
+            data = B00000000;
         SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
     }
     digitalWrite(pinST, HIGH);
     SPI.endTransaction();
 }
 void doStyle1(int value)
-{ //           左上       左下       下面槓槓    右下        右上       上面的      圓點點      中間槓槓
-    byte arr[8]{B00000100, B00001000, B00010000, B00100000, B01000000, B10000000, B00000001, B00000010};
+{ //           圓點點       左下       下面槓槓    右下        右上       上面的      左上      中間槓槓
+    byte arr[8]{B00000001, B00001000, B00010000, B00100000, B01000000, B10000000, B00000100, B00000010};
     const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
     SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
     digitalWrite(pinST, LOW);
@@ -541,6 +581,24 @@ void doStyle1(int value)
     digitalWrite(pinST, HIGH);
     SPI.endTransaction();
 }
-void doStyle2()
+void doStyle2(Adafruit_NeoPixel *strip, int value, uint16_t val)
 {
+    val = millis() - val;
+    for (size_t j = 0; j < 2; j++)
+    {
+        uint8_t newval = 0;
+        // 漸亮階段
+        if (val < 500)
+        {
+            newval = map(val, 0, 500, 0, 255);
+        }
+        // 漸暗階段
+        else
+        {
+            newval = map(val, 501, 1000, 255, 0);
+        }
+        strip->setPixelColor(0, value == 1 ? newval : 0, value == 2 ? newval : 0, value == 3 ? newval : 0);
+        strip->setPixelColor(1, value == 4 ? newval : 0, value == 5 ? newval : 0, value == 6 ? newval : 0);
+        strip->show();
+    }
 }

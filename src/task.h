@@ -13,4 +13,5 @@ void FlyingShip(void *pvParam);
 void set74HC595(String newTime);
 void doStyle1(int value);
 void taskPCM5102(void *pvParam);
+void doStyle2(Adafruit_NeoPixel *strip,int value,uint16_t val);
 #endif
