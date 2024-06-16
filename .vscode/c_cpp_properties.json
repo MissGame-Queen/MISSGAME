@@ -10,6 +10,8 @@
             "includePath": [
                 "C:/Users/user/Desktop/000/MissGame/MissGame/include",
                 "C:/Users/user/Desktop/000/MissGame/MissGame/src",
+                "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/Adafruit MCP23017 Arduino Library/src",
+                "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
                 "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/DFRobotDFPlayerMini",
                 "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/ESP32Servo/src",
                 "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/ESP32-audioI2S/src",
@@ -262,6 +264,8 @@
                 "path": [
                     "C:/Users/user/Desktop/000/MissGame/MissGame/include",
                     "C:/Users/user/Desktop/000/MissGame/MissGame/src",
+                    "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/Adafruit MCP23017 Arduino Library/src",
+                    "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/Adafruit BusIO",
                     "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/DFRobotDFPlayerMini",
                     "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/ESP32Servo/src",
                     "C:/Users/user/Desktop/000/MissGame/MissGame/.pio/libdeps/esp32doit-devkit-v1/ESP32-audioI2S/src",

@@ -29,7 +29,7 @@ void ConfigInit(int mode = 0)
   uint8_t pin = _T_E2JS(_PIN_SET).as<uint8_t>();
   pinMode(pin, INPUT_PULLUP);
   (!digitalRead(pin)) ? _T_E2JS(_TYPE_SET) = 1 : _T_E2JS(_TYPE_SET) = 0;
-
+/*
   xTaskCreatePinnedToCore(taskStatusLED,
                           "taskStatusLED",
                           2048,
@@ -37,7 +37,7 @@ void ConfigInit(int mode = 0)
                           1,
                           NULL,
                           0);
-
+*/
   if (_T_E2JS(_TYPE_SET).as<bool>())
   {
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "配置模式!");
@@ -152,37 +152,10 @@ String myCmdTable_Json(JsonDocument *doc)
 {
   String rtStatus = "{\"State\":\"OK\"}";
   String errStatus = "{\"State\":\"ERROR\"}";
-  /*
-  for (JsonPair item : obj)
-  { // FIXME 記得補上所需的功能
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "Function:%s\n", item.key().c_str());
-    if (1 == 2)
-      ;
-    else
-    {
-      // 判斷是否包含在指令表，且透過Function參數執行的
-      // 如果是就覆寫鍵值
-      for (JsonPair item : obj)
-      {
-        const char *key = item.key().c_str();
-        if ((*Template_JsonPTC->getJsonObject()).containsKey(key) && item.value().containsKey("Function"))
-        {
-          serializeJson(item.value()["Function"], Serial);
-          Serial.println();
-          serializeJson((*Template_JsonPTC->getJsonObject())[key], Serial);
-          Serial.println();
-          (*Template_JsonPTC->getJsonObject())[key]["Value"].set(item.value()["Function"]);
-          serializeJson((*Template_JsonPTC->getJsonObject())[key], Serial);
-          Serial.println();
-        }
-      }
-    }
-  }
-*/
 
   JsonArray args = doc->as<JsonArray>();
   String eventName = args[0];
-
+  // serializeJsonPretty(args, Serial);
   if (eventName == "MissGame" || eventName == _E2JS(_MODULE_ID).as<String>())
   {
 
@@ -207,16 +180,23 @@ String myCmdTable_Json(JsonDocument *doc)
        1~10 籃球機
        11~20 飛行船
        */
+      static String str = "";
       if (id == _E2JS(_MODULE_ID).as<uint16_t>())
       {
         switch (id)
         {
-          
         case 1 ... 10:
         {
-          String str = "";
+          str = "";
           serializeJson(args[1], str);
           xQueueSend(queueBasketball, &str, portMAX_DELAY);
+        }
+        break;
+        case 11 ... 20:
+        {
+          str = "";
+          serializeJson(args[1], str);
+          xQueueSend(queuePCM5102, &str, portMAX_DELAY);
         }
         break;
         default:
@@ -242,22 +222,51 @@ void setup()
 {
 
   Serial.begin(115200);
+
+  Wire.begin();
   ConfigInit();
 
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
   RTOS();
   _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
+  uint8_t test = 0;
+  /*
+  _DELAY_MS(5000);
+  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
+  if (Template_JsonPTC != nullptr)
+  {
+    delete Template_JsonPTC;
+    // 設為 nullptr 避免懸空指標
+    Template_JsonPTC = nullptr;
+  }
+*/
+  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
 
   switch (id)
   {
   case 1 ... 9:
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "投籃機模式~");
-    static uint8_t test = 0;
-    Basketball((void *)&test);
+    xTaskCreatePinnedToCore(Basketball,
+                            "Basketball",
+                            2048,
+                            (void *)&test,
+                            1,
+                            NULL,
+                            0);
+    taskPCM5102((void *)&test);
     break;
   case 10 ... 19:
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "飛行船模式~");
 
+    xTaskCreatePinnedToCore(FlyingShip,
+                            "FlyingShip",
+                            2048,
+                            (void *)&test,
+                            1,
+                            NULL,
+                            0);
+
+    taskPCM5102((void *)&test);
     break;
   default:
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);

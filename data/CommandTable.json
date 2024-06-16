@@ -1,6 +1,6 @@
 {
   "STA_SSID": {
-    "Default": "MissGAME_SOG",
+    "Default": "MissGame_B2",
     "Description": " 想連接的WIFI名稱"
   },
   "STA_PASSWORD": {
@@ -36,7 +36,7 @@
     "Description": " MQTT服務器網址(localhost.local)"
   },
   "SOCKETIO_URL": {
-    "Default": "192.168.0.8",
+    "Default": "",
     "Description": " SocketIO伺服器網址(localhost.local)"
   },
   "MQTT_CLIENT_NAME": {
