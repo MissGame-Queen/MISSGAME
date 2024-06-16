@@ -61,7 +61,16 @@ void Basketball(void *pvParam)
         }
     }
       */
-
+/*
+    while (true)
+    {
+        for (size_t i = 0; i < 6; i++)
+        {
+            doStyle1(i);
+            _DELAY_MS(500);
+        }
+    }
+*/
     while (1)
     {
         static String strCMD = "";
@@ -72,14 +81,14 @@ void Basketball(void *pvParam)
             if (error)
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO,strCMD);
+                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, strCMD);
             }
             else
             {
                 if (doc.containsKey("status"))
                 {
                     status = doc["status"].as<uint8_t>();
-                    first=true;
+                    first = true;
                 }
                 if (doc.containsKey("value"))
                 {
@@ -308,4 +317,22 @@ void set74HC595(String newTime)
     }
     digitalWrite(pinST, HIGH);
     SPI.endTransaction();
+}
+void doStyle1(int value)
+{ //           左上       左下       下面槓槓    右下        右上       上面的      圓點點      中間槓槓
+    byte arr[8]{B00000100, B00001000, B00010000, B00100000, B01000000, B10000000, B00000001, B00000010};
+    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
+    SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
+    digitalWrite(pinST, LOW);
+
+    /*寫在這裡
+     */
+
+    SPI.transfer(arr[value]);
+    SPI.transfer(arr[value]);
+    digitalWrite(pinST, HIGH);
+    SPI.endTransaction();
+}
+void doStyle2()
+{
 }
