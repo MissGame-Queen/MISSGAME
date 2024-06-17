@@ -59,16 +59,16 @@ void Basketball(void *pvParam)
         }
     }
       */
-/*
-    while (true)
-    {
-        for (size_t i = 0; i < 6; i++)
+    /*
+        while (true)
         {
-            doStyle1(i);
-            _DELAY_MS(500);
+            for (size_t i = 0; i < 6; i++)
+            {
+                doStyle1(i);
+                _DELAY_MS(500);
+            }
         }
-    }
-*/
+    */
     while (1)
     {
 
@@ -314,26 +314,31 @@ void FlyingShip(void *pvParam)
     };
     const uint8_t ansValue[]{5, 4, 3, 2, 1, 7, 13, 19, 20, 21, 15, 9, 8, 14, 20, 26, 27, 28};
     const uint8_t checkValue[]{7, 9, 17};
-    uint8_t value[sizeof(ansValue)];
     uint8_t status = Reset;
     uint8_t index = 0;
+    uint8_t saveIndex = 0;
+    uint8_t checkPoint = 0;
     uint32_t timer = 0;
+    uint32_t timerStrip = 0;
+    uint8_t valLast = 0xFF;
     String strAudio = "";
-    Adafruit_NeoPixel strip(10, 23, NEO_GRB + NEO_KHZ800);
+    Adafruit_NeoPixel strip(72, 23, NEO_GRB + NEO_KHZ800);
     const uint8_t ONLOCK = B00100000;
     const uint8_t OFFLOCK = B00000000;
     bool ifLock = true;
-    while(1);
+
+    while (1)
     {
         switch (status)
         {
         case Reset:
-            for (uint8_t i = 0; i < sizeof(value); i++)
-            {
-                value[i] = 0;
-            }
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "RST!\n");
+
             index = 0;
+            saveIndex = 0;
             ifLock = true;
+            checkPoint = 0;
+            valLast = 0xFF;
             status++;
             break;
         case Play:
@@ -342,26 +347,26 @@ void FlyingShip(void *pvParam)
                 mcp.writeGPIOA((1 << j) + (ifLock ? ONLOCK : OFFLOCK));
                 _DELAY_MS(10);
                 uint8_t data = mcp.readGPIOB() ^ 0xFF;
-                //每個port讀取
+                // 每個port讀取
                 for (uint8_t i = 0; i < 6; i++)
                 { // 如果檢測到磁簧
                     if (data & (1 << i))
                     {
                         uint8_t val = j * 6 + i;
-                        static uint8_t valLast = 0xFF;
                         // 如果和上次位置不一樣
                         if (valLast != val)
                         {
                             valLast = val;
-                            value[index] = val;
                             // 如果放對位置
                             if (ansValue[index] == val)
                             {
                                 bool checksw = false;
                                 for (uint8_t iCheck = 0; iCheck < sizeof(checkValue); iCheck++)
                                 {
+                                    // 如果到紀錄點
                                     if (checkValue[iCheck] == index)
                                     {
+                                        saveIndex = index;
                                         if (iCheck == sizeof(checkValue) - 1)
                                             status++;
                                         checksw = true;
@@ -383,7 +388,7 @@ void FlyingShip(void *pvParam)
                             }
                             else
                             {
-                                index = 0;
+                                index = saveIndex;
                                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "錯誤!%d\n", +val);
                                 strAudio = "{\"name\": \"/Mistake.mp3\"}";
                                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
@@ -394,6 +399,26 @@ void FlyingShip(void *pvParam)
                 j++;
                 if (j >= 5)
                     j = 0;
+                // 判斷進度顯示花色
+                
+                if (millis() > timerStrip + 50)
+                {
+               timerStrip= millis();
+                    for (uint16_t i = 0; i < strip.numPixels(); i++)
+                    {
+                        // uint32_t color = setRainbowRGB((map(millis() % 3000, 0, 3000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                        uint32_t color = setRainbowRGB(map(millis() % 5000, 0, 5000, 0, 1536));
+                        color = setBrightnessRGB(color, map(millis() % 2000, 0, 2000, 0, 255));
+                        if (saveIndex > 0 && i > (strip.numPixels() / 3) * 2)
+                            strip.setPixelColor(i, color);
+                        else if (saveIndex > 0 && i > (strip.numPixels() / 3) * 2)
+                            strip.setPixelColor(i, color);
+                        else
+                            strip.setPixelColor(i, 0);
+                    }
+                    strip.show();
+                }
+                
             }
             break;
         case End:
@@ -532,10 +557,6 @@ void doStyle1(int value)
     const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
     SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
     digitalWrite(pinST, LOW);
-
-    /*寫在這裡
-     */
-
     SPI.transfer(arr[value]);
     SPI.transfer(arr[value]);
     digitalWrite(pinST, HIGH);
