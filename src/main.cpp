@@ -29,15 +29,15 @@ void ConfigInit(int mode = 0)
   uint8_t pin = _T_E2JS(_PIN_SET).as<uint8_t>();
   pinMode(pin, INPUT_PULLUP);
   (!digitalRead(pin)) ? _T_E2JS(_TYPE_SET) = 1 : _T_E2JS(_TYPE_SET) = 0;
-/*
-  xTaskCreatePinnedToCore(taskStatusLED,
-                          "taskStatusLED",
-                          2048,
-                          (void *)&Template_System_Obj,
-                          1,
-                          NULL,
-                          0);
-*/
+  /*
+    xTaskCreatePinnedToCore(taskStatusLED,
+                            "taskStatusLED",
+                            2048,
+                            (void *)&Template_System_Obj,
+                            1,
+                            NULL,
+                            0);
+  */
   if (_T_E2JS(_TYPE_SET).as<bool>())
   {
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "配置模式!");
@@ -222,7 +222,6 @@ void setup()
 {
 
   Serial.begin(115200);
-
   Wire.begin();
   ConfigInit();
 
@@ -260,6 +259,13 @@ void setup()
 
     xTaskCreatePinnedToCore(FlyingShip,
                             "FlyingShip",
+                            2048,
+                            (void *)&test,
+                            1,
+                            NULL,
+                            0);
+    xTaskCreatePinnedToCore(taskWS2812,
+                            "taskWS2812",
                             2048,
                             (void *)&test,
                             1,

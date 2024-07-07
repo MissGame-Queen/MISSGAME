@@ -5,9 +5,6 @@
 #include <DFRobotDFPlayerMini.h>
 #include <Audio.h>
 #include <SPIFFS.h>   //內建的空間儲存庫
-extern String Timer_newSecond;
-extern tm tmTimer;
-extern uint16_t Timer_status;
 extern uint16_t SoundPlayerLevel[2];
 extern String SoundPlayerName[2];
 extern Audio *audioPCM5102;
@@ -27,7 +24,7 @@ typedef struct CRC16_parameter_t
 } CRC16;
 void CoinDispenser(uint16_t time = 0);
 void taskBallDispenser(void *pvParam);
-void taskTimer(void *pvParam);
+//void taskTimer(void *pvParam);
 void taskPCM5102(void *pvParam);
 void set74HC595(String newTime);
 void printDetail(uint8_t type, int value);

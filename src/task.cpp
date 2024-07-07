@@ -1,8 +1,11 @@
 #include "task.h"
 QueueHandle_t queueBasketball = xQueueCreate(1, sizeof(String));
 QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
-const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
-const uint8_t pinLED = 15, pinBCLK = 27, pinLRC = 25, pinDOUT = 26;
+QueueHandle_t queuedoStyle4 = xQueueCreate(1, sizeof(doStyle4_s));
+
+SemaphoreHandle_t xMutex = xSemaphoreCreateMutex();
+uint8_t saveIndex = 0;
+uint8_t index_FlyingShip = 0;
 /**
  * @brief 籃球機
  *
@@ -15,12 +18,15 @@ void Basketball(void *pvParam)
 {
 
     const uint8_t pinIn[]{36, 39, 34, 35};
+    const uint8_t pinLock = 14;
     pinMode(pinST, OUTPUT);
     set74HC595("00");
     for (size_t i = 0; i < sizeof(pinIn); i++)
     {
         pinMode(pinIn[i], INPUT);
     }
+    pinMode(pinLock, OUTPUT);
+    digitalWrite(pinLock, HIGH);
 
     Adafruit_NeoPixel strip(2, pinLED, NEO_RGB + NEO_KHZ800);
 
@@ -30,6 +36,7 @@ void Basketball(void *pvParam)
     uint8_t value[] = {0, 0};
     JsonDocument doc;
     String strCMD = "";
+    uint8_t fraction = 30;
     enum status_e
     {
         Reset,
@@ -59,16 +66,25 @@ void Basketball(void *pvParam)
         }
     }
       */
-    /*
-        while (true)
+    while (false)
+    {
+        static uint32_t trmerLimit = millis();
+        if (trmerLimit != 0 && millis() > trmerLimit + 20)
         {
-            for (size_t i = 0; i < 6; i++)
+            trmerLimit = millis();
+            if (digitalRead(pinIn[2]))
             {
-                doStyle1(i);
-                _DELAY_MS(500);
+                strCMD = "{\"name\": \"/Limit.mp3\"}";
+                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
+                set74HC595("--");
+            }
+            else
+            {
+                set74HC595("88");
             }
         }
-    */
+        _DELAY_MS(10);
+    }
     while (1)
     {
 
@@ -96,13 +112,15 @@ void Basketball(void *pvParam)
         switch (status)
         {
         case Reset:
+            digitalWrite(pinLock, HIGH);
+            fraction = 30;
             set74HC595("00");
             for (uint8_t i = 0; i < strip.numPixels(); i++)
                 strip.setPixelColor(i, 0);
             strip.show();
             status++;
             break;
-            //[ ]等待按鈕按下並放開
+            // 等待按鈕按下並放開
         case Standby:
         {
             if (first)
@@ -110,6 +128,22 @@ void Basketball(void *pvParam)
                 _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入等待狀態!");
                 first = false;
             }
+            // 待機動畫
+            static uint32_t timerStyle2 = 0;
+
+            // 如果開機時間大於上次紀錄的時間150ms
+            if (millis() > timer + 50)
+            {
+                timer = millis();
+                doStyle1(map((timer % 500), 0, 500, 0, 6));
+            }
+            if (millis() > timerStyle2 + 5000)
+            {
+                timerStyle2 = millis();
+            }
+            doStyle2(&strip, map(millis() - timerStyle2, 0, 5000, 2, 7), timerStyle2);
+
+            // 如果按鈕按下
             static bool sw = false;
             if (!digitalRead(pinIn[0]) && !sw)
                 sw = true;
@@ -125,6 +159,8 @@ void Basketball(void *pvParam)
 
         case Ready:
         {
+            static uint32_t timerStyle3 = 0;
+
             if (first)
             {
                 _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入準備狀態!");
@@ -132,45 +168,37 @@ void Basketball(void *pvParam)
                 strCMD = "{\"value\": 1}";
                 xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
                 first = false;
-                timer = millis() - 600;
+                timerStyle3 = millis();
+                timer = timerStyle3 - 600;
                 // 開啟廣播燈
                 for (uint8_t i = 0; i < strip.numPixels(); i++)
                 {
                     strip.setPixelColor(i, i == 0 ? 255 : 0, 0, 0);
                 }
                 strip.show();
+                set74HC595("03");
             }
             static int8_t num = 3;
             if (millis() > timer + 1000)
             {
                 String str = "0" + String(num);
-                str = str.substring(str.length() - 2);
-                set74HC595(str);
+                set74HC595(str.substring(str.length() - 2));
                 if (num > 0)
-                {
-                    /*FIXME補上倒數動畫
-                    for (uint8_t i = 0; i < strip.numPixels(); i++)
-                    {
-                        strip.setPixelColor(i, num == 1 ? 255 : 0, num == 3 ? 255 : 0, num == 2 ? 255 : 0);
-                    }
-                    strip.show();
-                    */
                     num--;
-                    timer = millis();
-                }
                 else
                 {
+                    doStyle3(&strip, 3500, map(3500, 0, 3500, 3500, 0));
                     num = 3;
                     status++;
-                    timer = millis();
                     first = true;
                 }
+                timer = millis();
             }
+            doStyle3(&strip, 3500, map(MIN(millis() - timerStyle3, 3500), 0, 3500, 3500, 0));
         }
         break;
         case Start:
         {
-            static uint8_t fraction = 30;
             static bool sw = false;
             static bool isLimit = false;
             static uint32_t trmerLimit = 0;
@@ -183,21 +211,21 @@ void Basketball(void *pvParam)
                 // strCMD = "{\"name\": \"/Start.mp3\"}";
                 // xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
             }
-            // HACK
+
             // 如果持續ON0.1S輸出踩線語音
-            if (digitalRead(pinIn[2]) && trmerLimit != 0 && millis() > trmerLimit + 100 && !isLimit && false)
+            if (!digitalRead(pinIn[2]) && trmerLimit != 0 && millis() > trmerLimit + 100 && !isLimit)
             {
                 strCMD = "{\"name\": \"/Limit.mp3\"}";
                 xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
                 isLimit = true;
                 set74HC595("--");
             }
-            else if (digitalRead(pinIn[2]))
+            else if (!digitalRead(pinIn[2]) && trmerLimit == 0)
             {
+
                 trmerLimit = millis();
             }
-
-            else if (!digitalRead(pinIn[2]))
+            else if (digitalRead(pinIn[2]))
             {
                 isLimit = false;
                 trmerLimit = 0;
@@ -209,15 +237,14 @@ void Basketball(void *pvParam)
                 if (!isLimit)
                 {
                     String str = "0" + String(fraction);
-                    str = str.substring(str.length() - 2);
-                    set74HC595(str);
+                    set74HC595(str.substring(str.length() - 2));
                 }
                 fraction--;
                 timer = millis();
                 //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘時間: %s,目前分數:%d\n", str.c_str(), value[0]);
             }
             // 如果感測器ON且和上次間隔超過0.5S且沒踩線
-            if (!digitalRead(pinIn[1]) && !sw && millis() > trmerValue + 500 && !isLimit)
+            if (!digitalRead(pinIn[1]) && !sw && millis() > trmerValue + 1000 && !isLimit)
                 sw = true;
             else if (digitalRead(pinIn[1]) && sw)
             {
@@ -250,10 +277,10 @@ void Basketball(void *pvParam)
                 else
                     status = Fail;
 
-                fraction = 30;
                 value[0] = 0;
                 value[1] = 0;
                 first = true;
+                timer = millis();
             }
         }
         break;
@@ -264,9 +291,24 @@ void Basketball(void *pvParam)
             {
                 strCMD = "{\"name\": \"/Finish.mp3\",\"value\": 3}";
                 xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
+                digitalWrite(pinLock, LOW);
+
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!json:%s\n", strCMD.c_str());
                 first = false;
-                _DELAY_MS(8000);
+            }
+            String str = "0" + String(fraction);
+            set74HC595(str.substring(str.length() - 2));
+            strip.setPixelColor(0, 255, 255, 255);
+            strip.setPixelColor(1, 255, 255, 255);
+            strip.show();
+            _DELAY_MS(300);
+            set74HC595("  ");
+            strip.setPixelColor(0, 255, 0, 0);
+            strip.setPixelColor(1, 0, 0, 0);
+            strip.show();
+            _DELAY_MS(300);
+            if (millis() > timer + 8000)
+            {
                 status = Reset;
             }
         }
@@ -285,11 +327,10 @@ void Basketball(void *pvParam)
             }
         }
         break;
-
         default:
             break;
         }
-        _DELAY_MS(2);
+        _DELAY_MS(50);
     }
 }
 void FlyingShip(void *pvParam)
@@ -297,9 +338,9 @@ void FlyingShip(void *pvParam)
     Adafruit_MCP23X17 mcp;
     if (!mcp.begin_I2C())
     {
-        Serial.println("Error.");
+        Serial.println("mcp錯誤!!");
         while (1)
-            ;
+            _DELAY_MS(50);
     }
     for (uint8_t i = 0; i < 8; i++)
     {
@@ -309,40 +350,76 @@ void FlyingShip(void *pvParam)
     enum status_e
     {
         Reset,
+        Wait,
         Play,
         End,
     };
+
     const uint8_t ansValue[]{5, 4, 3, 2, 1, 7, 13, 19, 20, 21, 15, 9, 8, 14, 20, 26, 27, 28};
-    const uint8_t checkValue[]{7, 9, 17};
+
     uint8_t status = Reset;
-    uint8_t index = 0;
-    uint8_t saveIndex = 0;
+
     uint8_t checkPoint = 0;
     uint32_t timer = 0;
     uint32_t timerStrip = 0;
+    uint32_t timerStripType = 0;
     uint8_t valLast = 0xFF;
     String strAudio = "";
-    Adafruit_NeoPixel strip(72, 23, NEO_GRB + NEO_KHZ800);
+    Adafruit_NeoPixel strip(14 /*60*/, 4, NEO_RGB + NEO_KHZ800);
+    stripType_FlyingShip_e stripType = Standby;
     const uint8_t ONLOCK = B00100000;
     const uint8_t OFFLOCK = B00000000;
     bool ifLock = true;
-
+    bool isFast = true;
+    bool isFailed = false;
+    bool isCorrect = false;
+    static doStyle4_s doStyle4_struct;
     while (1)
     {
         switch (status)
         {
         case Reset:
             _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "RST!\n");
-
-            index = 0;
+            index_FlyingShip = 0;
             saveIndex = 0;
             ifLock = true;
             checkPoint = 0;
-            valLast = 0xFF;
+            isFast = true;
+            if (isFailed)
+                isFailed = false;
+            else
+                valLast = 0xFF;
+            isCorrect = false;
+            status++;
+            break;
+        case Wait:
             status++;
             break;
         case Play:
+        {
+            if (isFast)
+            {
+                isFast = false;
+                stripType = Standby;
+                timerStrip=millis();
+                doStyle4_struct.strip = &strip;
+                doStyle4_struct.stripType = &stripType;
+                doStyle4_struct.timerStrip = timerStrip;
+                doStyle4_struct.timerStripType = timerStripType;
+                xQueueSend(queuedoStyle4, &doStyle4_struct, portMAX_DELAY);
+                /*
+                                doStyle4(&strip, &stripType, timerStrip, timerStripType);
+                                if (xSemaphoreTake(xMutex, portMAX_DELAY))
+                                {
+                                    strip.show();
+                                    _DELAY_MS(1);
+                                    xSemaphoreGive(xMutex);
+                                }
+                                */
+            }
             static uint8_t j = 0;
+
+            if (!isFailed && !isCorrect)
             {
                 mcp.writeGPIOA((1 << j) + (ifLock ? ONLOCK : OFFLOCK));
                 _DELAY_MS(10);
@@ -353,83 +430,120 @@ void FlyingShip(void *pvParam)
                     if (data & (1 << i))
                     {
                         uint8_t val = j * 6 + i;
-                        // 如果和上次位置不一樣
+                        // 如果和上次位置不一樣而且之前沒走錯
                         if (valLast != val)
-                        {
+                        { // 如果放正確第一則重頭開始遊戲
+                            if (val == ansValue[0])
+                            {
+                                index_FlyingShip = 0;
+                                saveIndex = 0;
+                            }
                             valLast = val;
                             // 如果放對位置
-                            if (ansValue[index] == val)
+                            if (ansValue[index_FlyingShip] == val)
                             {
                                 bool checksw = false;
                                 for (uint8_t iCheck = 0; iCheck < sizeof(checkValue); iCheck++)
                                 {
                                     // 如果到紀錄點
-                                    if (checkValue[iCheck] == index)
+                                    if (checkValue[iCheck] == index_FlyingShip)
                                     {
-                                        saveIndex = index;
+                                        saveIndex = index_FlyingShip;
                                         if (iCheck == sizeof(checkValue) - 1)
+                                        {
                                             status++;
+                                            isFast = true;
+                                        }
                                         checksw = true;
                                         break;
                                     }
                                 }
                                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "正確!%d\n", val);
+                                isCorrect = true;
+
                                 if (checksw)
                                 {
                                     strAudio = "{\"name\": \"/Correct.mp3\"}";
                                     xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                                    stripType = stripType_FlyingShip_e(stripType | Save);
+
+                                    timerStripType = millis();
+                                    doStyle4_struct.strip = &strip;
+                                    doStyle4_struct.stripType = &stripType;
+                                    doStyle4_struct.timerStrip = timerStrip;
+                                    doStyle4_struct.timerStripType = timerStripType;
+                                    xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
                                 }
                                 else
                                 {
                                     strAudio = "{\"name\": \"/Touch.mp3\"}";
                                     xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                                    stripType = stripType_FlyingShip_e(stripType | Correct);
+                                    timerStripType = millis();
+                                    timerStrip = millis();
+                                    doStyle4_struct.strip = &strip;
+                                    doStyle4_struct.stripType = &stripType;
+                                    doStyle4_struct.timerStrip = timerStrip;
+                                    doStyle4_struct.timerStripType = timerStripType;
+                                    xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
                                 }
-                                index++;
+                                index_FlyingShip++;
                             }
                             else
                             {
-                                index = saveIndex;
+                                //[ ]取消紀錄點功能
+                                // index_FlyingShip = saveIndex;
+                                isFailed = true;
                                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "錯誤!%d\n", +val);
                                 strAudio = "{\"name\": \"/Mistake.mp3\"}";
                                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                                timerStrip = millis();
+                                timerStripType = timerStrip;
+                                stripType = stripType_FlyingShip_e(stripType | Mistake);
+                                doStyle4_struct.strip = &strip;
+                                doStyle4_struct.stripType = &stripType;
+                                doStyle4_struct.timerStrip = timerStrip;
+                                doStyle4_struct.timerStripType = timerStripType;
+                                xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
                             }
                         }
                     }
                 }
-                j++;
-                if (j >= 5)
-                    j = 0;
-                // 判斷進度顯示花色
-                
-                if (millis() > timerStrip + 50)
-                {
-               timerStrip= millis();
-                    for (uint16_t i = 0; i < strip.numPixels(); i++)
-                    {
-                        // uint32_t color = setRainbowRGB((map(millis() % 3000, 0, 3000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
-                        uint32_t color = setRainbowRGB(map(millis() % 5000, 0, 5000, 0, 1536));
-                        color = setBrightnessRGB(color, map(millis() % 2000, 0, 2000, 0, 255));
-                        if (saveIndex > 0 && i > (strip.numPixels() / 3) * 2)
-                            strip.setPixelColor(i, color);
-                        else if (saveIndex > 0 && i > (strip.numPixels() / 3) * 2)
-                            strip.setPixelColor(i, color);
-                        else
-                            strip.setPixelColor(i, 0);
-                    }
-                    strip.show();
-                }
-                
+                j = (j + 1) % 5;
             }
-            break;
+
+            if (isFailed && millis() > timerStripType + 2000)
+                status = Reset;
+            if (isCorrect && millis() > timerStripType + 500)
+                isCorrect = false;
+        }
+        break;
         case End:
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!\n");
-            strAudio = "{\"name\": \"/Correct.mp3\"}";
-            xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
-            ifLock = false;
-            mcp.writeGPIOA((ifLock ? ONLOCK : OFFLOCK));
-            _DELAY_MS(5000);
-            status = Reset;
-            break;
+        {
+            if (isFast)
+            {
+                isFast = false;
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!\n");
+                strAudio = "{\"name\": \"/Correct.mp3\"}";
+                xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                ifLock = false;
+                mcp.writeGPIOA((ifLock ? ONLOCK : OFFLOCK));
+                timer = millis();
+                timerStrip = timer;
+                stripType = Finish;
+                doStyle4_struct.strip = &strip;
+                doStyle4_struct.stripType = &stripType;
+                doStyle4_struct.timerStrip = timerStrip;
+                doStyle4_struct.timerStripType = timerStripType;
+                xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
+            }
+            if (millis() > timer + 8000)
+            {
+                isFast = true;
+                status = Reset;
+            }
+        }
+        break;
         default:
             break;
         }
@@ -461,7 +575,7 @@ void taskPCM5102(void *pvParam)
         Serial.println("SD卡正常!!");
 
     // Audio *audio = (Audio *)pvParam;
-    Audio *audio = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_0);
+    Audio *audio = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
     audio->setPinout(pinBCLK, pinLRC, pinDOUT);
     audio->setVolume(21); // 0...21
 
@@ -489,8 +603,7 @@ void taskPCM5102(void *pvParam)
                     }
                     else
                     {
-                        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%s\n", doc["name"].as<String>().c_str());
-
+                        //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%s\n", doc["name"].as<String>().c_str());
                         audio->connecttoFS(SD, doc["name"].as<String>().c_str());
                         audio->loop();
                     }
@@ -520,11 +633,45 @@ void taskPCM5102(void *pvParam)
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放結束!等級歸0\n");
             }
         }
-        audio->loop();
-        vTaskDelay(2);
+        if (xSemaphoreTake(xMutex, portMAX_DELAY))
+        {
+            audio->loop();
+
+            _DELAY_MS(1);
+            xSemaphoreGive(xMutex);
+        }
+        vTaskDelay(3);
     }
 }
-
+void taskWS2812(void *pvParam)
+{
+    doStyle4_s inData;
+    doStyle4_s staticData;
+    staticData.strip = nullptr;
+    while (staticData.strip == nullptr)
+    {
+        if (xQueueReceive(queuedoStyle4, &inData, 0) == pdPASS)
+        {
+            staticData = inData;
+        }
+        _DELAY_MS(20);
+    }
+    while (1)
+    {
+        if (xQueueReceive(queuedoStyle4, &inData, 0) == pdPASS)
+        {
+            staticData = inData;
+        }
+        doStyle4(staticData.strip, staticData.stripType, staticData.timerStrip, staticData.timerStripType);
+        if (xSemaphoreTake(xMutex, portMAX_DELAY))
+        {
+            staticData.strip->show();
+            _DELAY_MS(1);
+            xSemaphoreGive(xMutex);
+        }
+        _DELAY_MS(20);
+    }
+}
 /**
  * @brief 將數字格式輸出到74HC595
  *
@@ -546,22 +693,189 @@ void set74HC595(String newTime)
         uint8_t data = bitNumber[i < 2 ? 0 : 1][str[i] - '0'];
         if (str[i] == '-')
             data = B00000010;
+        else if (str[i] == ' ')
+            data = B00000000;
         SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
     }
     digitalWrite(pinST, HIGH);
     SPI.endTransaction();
 }
 void doStyle1(int value)
-{ //           左上       左下       下面槓槓    右下        右上       上面的      圓點點      中間槓槓
-    byte arr[8]{B00000100, B00001000, B00010000, B00100000, B01000000, B10000000, B00000001, B00000010};
-    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
-    SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
+{
+    byte arr[]{B00000100, B00001000, B00010000, B00100000, B01000000, B10000000};
+    SPI.beginTransaction(SPISettings(1000000, LSBFIRST, SPI_MODE3));
     digitalWrite(pinST, LOW);
     SPI.transfer(arr[value]);
     SPI.transfer(arr[value]);
     digitalWrite(pinST, HIGH);
     SPI.endTransaction();
 }
-void doStyle2()
+void doStyle2(Adafruit_NeoPixel *strip, int value, uint32_t timer)
 {
+    const uint16_t maxValue = 1000;
+    uint32_t newValue = (millis() - timer) % maxValue;
+    if (newValue < maxValue / 2)
+    {
+        newValue = map(newValue, 0, maxValue / 2, 0, 255);
+    }
+    else
+    {
+        newValue = map(newValue, maxValue / 2 + 1, maxValue, 255, 0);
+    }
+    strip->setPixelColor(0, value == 1 ? newValue : 0, value == 2 ? newValue : 0, value == 3 ? newValue : 0);
+    strip->setPixelColor(1, value == 4 ? newValue : 0, value == 5 ? newValue : 0, value == 6 ? newValue : 0);
+    strip->show();
+    _DELAY_MS(10);
+}
+void doStyle3(Adafruit_NeoPixel *strip, uint16_t valMax, uint16_t value)
+{
+    if (value > valMax * 0.8)
+    {
+        strip->setPixelColor(0, 255, 255, 255);
+        strip->setPixelColor(1, 255, 255, map(value, valMax * 0.8, valMax, 0, 255));
+    }
+    else if (value > valMax * 0.6)
+    {
+        strip->setPixelColor(0, 255, 255, 255);
+        strip->setPixelColor(1, 255, map(value, valMax * 0.6, valMax * 0.8, 0, 255), 0);
+    }
+    else if (value > valMax * 0.4)
+    {
+        strip->setPixelColor(0, 255, 255, 255);
+        strip->setPixelColor(1, map(value, valMax * 0.4, valMax * 0.6, 0, 255), 0, 0);
+    }
+    else if (value > valMax * 0.2)
+    {
+        strip->setPixelColor(0, 255, 255, map(value, valMax * 0.2, valMax * 0.4, 0, 255));
+        strip->setPixelColor(1, 0);
+    }
+    else
+    {
+        strip->setPixelColor(0, 255, map(value, 0, valMax * 0.2, 0, 255), 0);
+        strip->setPixelColor(1, 0);
+    }
+    strip->show();
+    _DELAY_MS(10);
+}
+
+void doStyle4(Adafruit_NeoPixel *strip, stripType_FlyingShip_e *stripType, uint32_t timerStrip, uint32_t timerStripType)
+{
+    uint32_t color = 0;
+    if ((*stripType) & Standby)
+    {
+        if (saveIndex == 0 && index_FlyingShip > 0)
+        {
+            (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Standby) + Start);
+        }
+        uint16_t maxVal = (strip->numPixels() * 2000) / 60.0;
+        color = setRainbowRGB(map(millis() % (6000), 0, 6000, 0, 1536));
+        static int8_t b = strip->numPixels() - 1;
+        static bool dir = true;
+        uint8_t p = map(millis() % maxVal, 0, maxVal, 0, strip->numPixels());
+        // map((millis() - timerStripType) % (maxVal * strip->numPixels()), 0, maxVal * strip->numPixels(), strip->numPixels(), 0);
+        if (p == b)
+        {
+            b--;
+            if (b < 0)
+            {
+                dir = !dir;
+                b = strip->numPixels() - 1;
+            }
+        }
+        for (uint16_t i = 0; i < strip->numPixels(); i++)
+        {
+            if (p == i || (dir && i > b) || (!dir && i <= b))
+            {
+                strip->setPixelColor(i, color);
+            }
+            else
+                strip->setPixelColor(i, 0);
+        }
+    }
+    if ((*stripType) & Start)
+    {
+        color = setRainbowRGB(map(millis() % 8000, 0, 8000, 0, 1536));
+
+        for (uint16_t i = 0; i < strip->numPixels(); i++)
+        {
+            if (checkValue[1] == saveIndex ||
+                (checkValue[0] == saveIndex && i <= (strip->numPixels() / 3) * 2) ||
+                (saveIndex == 0 && index_FlyingShip > 0 && i <= (strip->numPixels() / 3) * 1))
+            {
+                uint32_t color2 = color;
+                if ((checkValue[1] == saveIndex &&
+                     i > (strip->numPixels() / 3) * 2) ||
+
+                    (checkValue[0] == saveIndex &&
+                     i > (strip->numPixels() / 3) * 1 &&
+                     i <= (strip->numPixels() / 3) * 2) ||
+
+                    (saveIndex == 0 && index_FlyingShip &&
+                     i <= (strip->numPixels() / 3) * 1))
+                {
+                    uint16_t maxVal = 4000;
+                    uint16_t b = millis() % maxVal;
+
+                    if (b < maxVal / 2)
+                        color2 = setBrightnessRGB(color, map(b, 0, maxVal / 2, 0, 255));
+                    else
+                        color2 = setBrightnessRGB(color, map(b, maxVal / 2, maxVal, 255, 0));
+                }
+                strip->setPixelColor(i, color2);
+            }
+            else
+                strip->setPixelColor(i, 0);
+        }
+    }
+
+    if ((*stripType) & Save)
+    {
+        (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Save));
+    }
+    if ((*stripType) & Mistake)
+    {
+        if (millis() > timerStripType + 2000)
+        {
+            (*stripType) = (stripType_FlyingShip_e)((*stripType) ^ Mistake);
+        }
+        uint16_t maxVal = 1000;
+        uint16_t b = (millis() - timerStripType) % maxVal;
+        for (uint16_t i = 0; i < strip->numPixels(); i++)
+        {
+            if (b < maxVal / 2)
+                strip->setPixelColor(i, 255, 0, 0);
+            else
+                strip->setPixelColor(i, 0, 0, 0);
+        }
+    }
+    if ((*stripType) & Correct)
+    {
+        uint16_t maxVal = 500;
+        //(*stripType) = stripType_FlyingShip_e((*stripType) & Mistake);
+        if (millis() > timerStripType + maxVal)
+            (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Correct));
+
+        uint8_t ledLength = 10;
+        int8_t b = map(millis() - timerStripType, 0, maxVal, 0, strip->numPixels() + ledLength);
+        for (uint16_t i = 0; i < strip->numPixels(); i++)
+        {
+            if (i < b && i > b - ledLength)
+            {
+                uint32_t color2 = setBrightnessRGB(color, map(b - i, 0, ledLength, 255, 0));
+                strip->setPixelColor(i, color2);
+            }
+            else
+                strip->setPixelColor(i, 0);
+        }
+    }
+
+    if ((*stripType) & Finish)
+    {
+        for (uint16_t i = 0; i < strip->numPixels(); i++)
+        {
+            uint32_t color = setRainbowRGB((map(millis() % 3000, 0, 3000, 0, 1536) + map(i, 0, strip->numPixels(), 0, 1536)) % 1536);
+            color = setBrightnessRGB(color, 125);
+            strip->setPixelColor(i, color);
+        }
+    }
 }

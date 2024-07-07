@@ -1,16 +1,12 @@
 #include "task.h"
 
-// QueueHandle_t queueTimer = xQueueCreate(1, sizeof(uint16_t));
-String Timer_newSecond = "00:00";
-uint16_t Timer_status = 0;
-tm tmTimer;
-
 uint16_t SoundPlayerLevel[2] = {0, 0};
 String SoundPlayerName[2] = {"", ""};
 Audio *audioPCM5102 = new Audio();
 QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueDFPlayer = xQueueCreate(1, sizeof(uint16_t));
 QueueHandle_t queueBallTime = xQueueCreate(1, sizeof(uint16_t));
+QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueWeaponLight = xQueueCreate(1, sizeof(uint8_t));
 QueueHandle_t queueLINE_POST = xQueueCreate(1, sizeof(String));
 
@@ -181,7 +177,7 @@ audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
 
     String mp3Name = "";
     uint16_t mp3Value = 0;
-
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘可用內存%d\n", esp_get_free_heap_size());
     while (1)
     {
 
@@ -233,6 +229,7 @@ audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
  * @brief 計時器程式
  *
  */
+/*
 void taskTimer(void *pvParam)
 {
     // uint16_t second = 0;
@@ -265,7 +262,7 @@ void taskTimer(void *pvParam)
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "已收到秒數!%d\n", second);
     nowsecond = second;
     status[i] = RUN;
-    */
+
     uint8_t timeNum = 0;
     bool isNeedPrint = 1;
     bool isSet = false;
@@ -351,6 +348,7 @@ void taskTimer(void *pvParam)
         _DELAY_MS(500);
     }
 }
+/*
 /**
  * @brief
  *
@@ -763,8 +761,7 @@ void set74HC595(String newTime)
         if (str[i] == ':' || str[i] == '.' ? 1 : 0)
             continue;
         uint8_t data = bitNumber[i < 2 ? 0 : 1][str[i] - '0'];
-        myshiftOut(pinDS, pinSH, LSBFIRST, data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
-        // SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
+        SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
         // SPI.transfer(1 << i);
     }
     digitalWrite(pinST, HIGH);
@@ -838,23 +835,6 @@ void printDetail(uint8_t type, int value)
         break;
     default:
         break;
-    }
-}
-
-void myshiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
-{
-    uint8_t i;
-
-    for (i = 0; i < 8; i++)
-    {
-        if (bitOrder == LSBFIRST)
-            digitalWrite(dataPin, !!(val & (1 << i)));
-        else
-            digitalWrite(dataPin, !!(val & (1 << (7 - i))));
-
-        digitalWrite(clockPin, HIGH);
-        _DELAY_MS(1);
-        digitalWrite(clockPin, LOW);
     }
 }
 

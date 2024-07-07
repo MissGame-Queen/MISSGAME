@@ -141,6 +141,7 @@ void loop()
       digitalWrite(pinSound, LOW);
       vTaskDelay(100);
       digitalWrite(pinSound, HIGH);
+      vTaskDelay(100);
       lastnum = num;
       Serial.println(num);
     }
@@ -152,6 +153,7 @@ void loop()
       digitalWrite(pinDoor, 0);
       vTaskDelay(100);
       digitalWrite(pinDoor, 1);
+      vTaskDelay(100);
     }
     break;
   }

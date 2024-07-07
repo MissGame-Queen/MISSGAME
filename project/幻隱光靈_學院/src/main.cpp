@@ -29,15 +29,15 @@ void ConfigInit(int mode = 0)
   uint8_t pin = _T_E2JS(_PIN_SET).as<uint8_t>();
   pinMode(pin, INPUT_PULLUP);
   (!digitalRead(pin)) ? _T_E2JS(_TYPE_SET) = 1 : _T_E2JS(_TYPE_SET) = 0;
-
-  xTaskCreatePinnedToCore(taskStatusLED,
-                          "taskStatusLED",
-                          2048,
-                          (void *)&Template_System_Obj,
-                          1,
-                          NULL,
-                          0);
-
+  /*
+    xTaskCreatePinnedToCore(taskStatusLED,
+                            "taskStatusLED",
+                            2048,
+                            (void *)&Template_System_Obj,
+                            1,
+                            NULL,
+                            0);
+  */
   if (_T_E2JS(_TYPE_SET).as<bool>())
   {
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "配置模式!");
@@ -102,6 +102,7 @@ void ConfigInit(int mode = 0)
  */
 void RTOS()
 {
+
   // WiFi連線任務
   xTaskCreatePinnedToCore(WiFiInit,
                           "WiFiInit",
@@ -243,16 +244,14 @@ String myCmdTable_Json(JsonDocument *doc)
         }
         case 7 ... 9:
         {
-          if (args[1].containsKey("value"))
+          
+            String Timer_newSecond = args[1].as<String>();
+          if (args[1].containsKey("value")||args[1].containsKey("status"))
           {
             _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
-            // xQueueSend(queueTimer, &seconds, 0);
-            Timer_newSecond = args[1]["value"].as<String>();
+             xQueueSend(queueTimer, &Timer_newSecond, 0);
           }
-          if (args[1].containsKey("status"))
-          {
-            Timer_status = args[1]["status"].as<uint8_t>();
-          }
+
           break;
         }
         case 10 ... 19:
@@ -320,8 +319,8 @@ String myCmdTable_Json(JsonDocument *doc)
         case 30 ... 89:
           if (args[1].containsKey("value"))
           {
-           uint8_t level = args[1]["value"].as<uint8_t>();
-              xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
+            uint8_t level = args[1]["value"].as<uint8_t>();
+            xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
             _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id, args[1]["value"].as<uint8_t>());
           }
 
@@ -347,6 +346,8 @@ void myMQTTsubscribe(PubSubClient *MQTTClient)
 
 void setup()
 {
+    Serial.begin(115200);
+
   const uint8_t pinOut[]{25, 26, 27, 33};
   for (size_t i = 0; i < sizeof(pinOut); i++)
   {
@@ -354,13 +355,14 @@ void setup()
     ledcAttachPin(pinOut[i], i);
     ledcWrite(i, 0);
   }
-  Serial.begin(115200);
+
   Wire.begin();
   ConfigInit();
-
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
   RTOS();
   _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
+    taskPCM5102((void *)audioPCM5102);
+    return;//HACK內存不足的下策
 
   switch (id)
   {
@@ -379,14 +381,15 @@ void setup()
                             0);
     break;
   case 7 ... 9:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
-    xTaskCreatePinnedToCore(taskTimer,
-                            "taskTimer",
-                            10240,
-                            NULL,
-                            1,
-                            NULL,
-                            0);
+    // _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
+    // xTaskCreatePinnedToCore(taskTimer,
+    //                         "taskTimer",
+    //                         10240,
+    //                         NULL,
+    //                         1,
+    //                         NULL,
+    //                         0);
+                            
     break;
   case 10 ... 19:
     break;
@@ -431,9 +434,9 @@ void setup()
   break;
   case 100:
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "訊號延長器模式~");
-    taskSignalExtender();//投幣機
+    taskSignalExtender(); // 投幣機
     break;
-      case 101:
+  case 101:
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "訊號延長器模式~");
     taskLINE_POST();
     break;
