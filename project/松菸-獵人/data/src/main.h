@@ -1,6 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 #include <Template.h>
+#include "test.h"
 #include "task.h"
 #define _E2JS(x) (*Template_JsonPTC->getJsonObject())[#x]["Value"]
 // 描述{預設值,禁止的權限[R=讀取,W=寫入,S=寫入+存檔],HTML顯示的類型[默認text]}

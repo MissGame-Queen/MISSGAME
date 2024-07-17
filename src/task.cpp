@@ -1,561 +1,135 @@
 #include "task.h"
-QueueHandle_t queueBasketball = xQueueCreate(1, sizeof(String));
+
+uint16_t SoundPlayerLevel[2] = {0, 0};
+String SoundPlayerName[2] = {"", ""};
+Audio *audioPCM5102 = new Audio();
+QueueHandle_t queueJson = xQueueCreate(1, sizeof(String));
 QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
-QueueHandle_t queuedoStyle4 = xQueueCreate(1, sizeof(doStyle4_s));
+QueueHandle_t queueDFPlayer = xQueueCreate(1, sizeof(uint16_t));
+QueueHandle_t queueBallTime = xQueueCreate(1, sizeof(uint16_t));
+QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
+QueueHandle_t queueWeaponLight = xQueueCreate(1, sizeof(uint8_t));
+QueueHandle_t queueLINE_POST = xQueueCreate(1, sizeof(String));
 
-SemaphoreHandle_t xMutex = xSemaphoreCreateMutex();
-uint8_t saveIndex = 0;
-uint8_t index_FlyingShip = 0;
 /**
- * @brief 籃球機
+ * @brief 出幣機程式
  *
- *
- * @param pvParam
- * "status":狀態
- * "value":分數
  */
-void Basketball(void *pvParam)
+void CoinDispenser(uint16_t time)
 {
-
-    const uint8_t pinIn[]{36, 39, 34, 35};
-    const uint8_t pinLock = 14;
-    pinMode(pinST, OUTPUT);
-    set74HC595("00");
-    for (size_t i = 0; i < sizeof(pinIn); i++)
-    {
-        pinMode(pinIn[i], INPUT);
-    }
-    pinMode(pinLock, OUTPUT);
-    digitalWrite(pinLock, HIGH);
-
-    Adafruit_NeoPixel strip(2, pinLED, NEO_RGB + NEO_KHZ800);
-
-    uint8_t status = 0;
-    uint32_t timer = 0;
-    bool first = true;
-    uint8_t value[] = {0, 0};
-    JsonDocument doc;
-    String strCMD = "";
-    uint8_t fraction = 30;
-    enum status_e
-    {
-        Reset,
-        Standby,
-        Ready,
-        Start,
-        Finish,
-        Fail
-    };
-    /*HACK 測試人體感應器
-     while(1){
-         if(!digitalRead(pinIn[2]))
-          set74HC595("88");
-          else
-          set74HC595("--");
-          _DELAY_MS(10);
-     }*/
-    /*HACK 測試燈泡
-    while (1)
-    {
-        for (uint8_t i = 0; i < 5; i++)
-        {
-            strip.setPixelColor(0, i == 0 ? 255 : 0, i == 1 ? 255 : 0, i == 2 ? 255 : 0);
-            strip.setPixelColor(1, i == 3 ? 255 : 0, i == 4 ? 255 : 0, i == 5 ? 255 : 0);
-            strip.show();
-            _DELAY_MS(1000);
-        }
-    }
-      */
-    while (false)
-    {
-        static uint32_t trmerLimit = millis();
-        if (trmerLimit != 0 && millis() > trmerLimit + 20)
-        {
-            trmerLimit = millis();
-            if (digitalRead(pinIn[2]))
-            {
-                strCMD = "{\"name\": \"/Limit.mp3\"}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-                set74HC595("--");
-            }
-            else
-            {
-                set74HC595("88");
-            }
-        }
-        _DELAY_MS(10);
-    }
+    const uint8_t pinServo = 15 /*13*/, pinLED = 4, pinTrigger = 36; // 15;
+    const uint16_t waittim = 600;
+    const int16_t startdeg = _E2JS(_SEVER_DEG_START).as<uint8_t>();
+    const int16_t enddeg = _E2JS(_SEVER_DEG_END).as<uint8_t>();
+    Servo myServo;            //   Create Servo object to control the servo
+    myServo.attach(pinServo); //   Servo is connected to digital pin 9
+    myServo.write(startdeg);
+    pinMode(pinLED, OUTPUT);
+    pinMode(pinTrigger, INPUT_PULLUP);
+    uint16_t BallTime = 0;
+    uint16_t BallTimeAdd = 0;
     while (1)
     {
 
-        if (xQueueReceive(queueBasketball, &strCMD, 0) == pdPASS)
+        bool isTrigger = analogRead(pinTrigger) > 512;
+        if (!isTrigger)
         {
-            DeserializationError error = deserializeJson(doc, strCMD);
-            if (error)
-            {
-                _CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, strCMD);
-            }
-            else
-            {
-                if (doc.containsKey("status"))
-                {
-                    status = doc["status"].as<uint8_t>();
-                    first = true;
-                }
-                if (doc.containsKey("value"))
-                {
-                    value[0] = doc["value"].as<uint8_t>();
-                }
-            }
+            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被實體按鈕觸發了~");
+            BallTime++;
+            // Serial.println(BallTime);
         }
-        switch (status)
+        if (xQueueReceive(queueBallTime, &BallTimeAdd, 0) == pdPASS)
+            BallTime += BallTimeAdd;
+        while (BallTime > 0)
         {
-        case Reset:
-            digitalWrite(pinLock, HIGH);
-            fraction = 30;
-            set74HC595("00");
-            for (uint8_t i = 0; i < strip.numPixels(); i++)
-                strip.setPixelColor(i, 0);
-            strip.show();
-            status++;
-            break;
-            // 等待按鈕按下並放開
-        case Standby:
-        {
-            if (first)
-            {
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入等待狀態!");
-                first = false;
-            }
-            // 待機動畫
-            static uint32_t timerStyle2 = 0;
-
-            // 如果開機時間大於上次紀錄的時間150ms
-            if (millis() > timer + 50)
-            {
-                timer = millis();
-                doStyle1(map((timer % 500), 0, 500, 0, 6));
-            }
-            if (millis() > timerStyle2 + 5000)
-            {
-                timerStyle2 = millis();
-            }
-            doStyle2(&strip, map(millis() - timerStyle2, 0, 5000, 2, 7), timerStyle2);
-
-            // 如果按鈕按下
-            static bool sw = false;
-            if (!digitalRead(pinIn[0]) && !sw)
-                sw = true;
-            else if (digitalRead(pinIn[0]) && sw)
-            {
-                status++;
-                sw = false;
-                timer = millis();
-                first = true;
-            }
-        }
-        break;
-
-        case Ready:
-        {
-            static uint32_t timerStyle3 = 0;
-
-            if (first)
-            {
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入準備狀態!");
-                // audio.connecttospeech("玩家按下開始按鈕,倒數3秒開始", "zh-tw");
-                strCMD = "{\"value\": 1}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-                first = false;
-                timerStyle3 = millis();
-                timer = timerStyle3 - 600;
-                // 開啟廣播燈
-                for (uint8_t i = 0; i < strip.numPixels(); i++)
-                {
-                    strip.setPixelColor(i, i == 0 ? 255 : 0, 0, 0);
-                }
-                strip.show();
-                set74HC595("03");
-            }
-            static int8_t num = 3;
-            if (millis() > timer + 1000)
-            {
-                String str = "0" + String(num);
-                set74HC595(str.substring(str.length() - 2));
-                if (num > 0)
-                    num--;
-                else
-                {
-                    doStyle3(&strip, 3500, map(3500, 0, 3500, 3500, 0));
-                    num = 3;
-                    status++;
-                    first = true;
-                }
-                timer = millis();
-            }
-            doStyle3(&strip, 3500, map(MIN(millis() - timerStyle3, 3500), 0, 3500, 3500, 0));
-        }
-        break;
-        case Start:
-        {
-            static bool sw = false;
-            static bool isLimit = false;
-            static uint32_t trmerLimit = 0;
-            static uint32_t trmerValue = 0;
-            // 播放開始語音
-            if (first)
-            {
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "進入開始狀態!");
-                first = false;
-                // strCMD = "{\"name\": \"/Start.mp3\"}";
-                // xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-            }
-
-            // 如果持續ON0.1S輸出踩線語音
-            if (!digitalRead(pinIn[2]) && trmerLimit != 0 && millis() > trmerLimit + 100 && !isLimit)
-            {
-                strCMD = "{\"name\": \"/Limit.mp3\"}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-                isLimit = true;
-                set74HC595("--");
-            }
-            else if (!digitalRead(pinIn[2]) && trmerLimit == 0)
-            {
-
-                trmerLimit = millis();
-            }
-            else if (digitalRead(pinIn[2]))
-            {
-                isLimit = false;
-                trmerLimit = 0;
-            }
-            // 如果投進去則輸出語音
-            // 每秒更新字數顯示器
-            if (millis() > timer + 1000)
-            {
-                if (!isLimit)
-                {
-                    String str = "0" + String(fraction);
-                    set74HC595(str.substring(str.length() - 2));
-                }
-                fraction--;
-                timer = millis();
-                //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘時間: %s,目前分數:%d\n", str.c_str(), value[0]);
-            }
-            // 如果感測器ON且和上次間隔超過0.5S且沒踩線
-            if (!digitalRead(pinIn[1]) && !sw && millis() > trmerValue + 1000 && !isLimit)
-                sw = true;
-            else if (digitalRead(pinIn[1]) && sw)
-            {
-                trmerValue = millis();
-                sw = false;
-                value[0]++;
-                strCMD = "{\"name\": \"/Score.mp3\"}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-            }
-
-            // 分數變更才刷新燈
-            if (value[0] != value[1])
-            {
-                value[1] = value[0];
-                for (uint8_t i = 0; i < strip.numPixels(); i++)
-                {
-                    if ((i + 1) <= value[0])
-                        strip.setPixelColor(i,
-                                            (i * 3 - 1 < value[0]) || i == 0 ? 255 : 0,
-                                            i * 3 + 0 < value[0] ? 255 : 0,
-                                            i * 3 + 1 < value[0] ? 255 : 0);
-                }
-                strip.show();
-            }
-            // 如果達到結束條件
-            if (fraction > 30 || value[0] >= 5)
-            {
-                if (value[0] >= 5)
-                    status = Finish;
-                else
-                    status = Fail;
-
-                value[0] = 0;
-                value[1] = 0;
-                first = true;
-                timer = millis();
-            }
-        }
-        break;
-        case Finish:
-        {
-            // audio.connecttospeech("恭喜過關", "zh-tw");
-            if (first)
-            {
-                strCMD = "{\"name\": \"/Finish.mp3\",\"value\": 3}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-                digitalWrite(pinLock, LOW);
-
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!json:%s\n", strCMD.c_str());
-                first = false;
-            }
-            String str = "0" + String(fraction);
-            set74HC595(str.substring(str.length() - 2));
-            strip.setPixelColor(0, 255, 255, 255);
-            strip.setPixelColor(1, 255, 255, 255);
-            strip.show();
-            _DELAY_MS(300);
-            set74HC595("  ");
-            strip.setPixelColor(0, 255, 0, 0);
-            strip.setPixelColor(1, 0, 0, 0);
-            strip.show();
-            _DELAY_MS(300);
-            if (millis() > timer + 8000)
-            {
-                status = Reset;
-            }
-        }
-        break;
-        case Fail:
-        {
-            // audio.connecttospeech("是會不會,山石秒投進五顆球而已", "zh-tw");
-            if (first)
-            {
-                strCMD = "{\"name\": \"/Fail.mp3\",\"value\": 2}";
-                xQueueSend(queuePCM5102, &strCMD, portMAX_DELAY);
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "失敗!\n");
-                first = false;
-                _DELAY_MS(1000);
-                status = Reset;
-            }
-        }
-        break;
-        default:
-            break;
+            BallTime--;
+            digitalWrite(pinLED, 0);
+            myServo.write(enddeg);
+            _DELAY_MS(waittim);
+            digitalWrite(pinLED, 1);
+            myServo.write(startdeg);
+            _DELAY_MS(waittim);
         }
         _DELAY_MS(50);
     }
 }
-void FlyingShip(void *pvParam)
+
+/**
+ * @brief 出球機程式
+ *
+ */
+void taskBallDispenser(void *pvParam)
 {
-    Adafruit_MCP23X17 mcp;
-    if (!mcp.begin_I2C())
-    {
-        Serial.println("mcp錯誤!!");
-        while (1)
-            _DELAY_MS(50);
-    }
-    for (uint8_t i = 0; i < 8; i++)
-    {
-        mcp.pinMode(i + 8, INPUT_PULLUP);
-        mcp.pinMode(i, OUTPUT);
-    }
-    enum status_e
-    {
-        Reset,
-        Wait,
-        Play,
-        End,
-    };
+    Serial1.begin(9600, SERIAL_8N1, 22, 21);
 
-    const uint8_t ansValue[]{5, 4, 3, 2, 1, 7, 13, 19, 20, 21, 15, 9, 8, 14, 20, 26, 27, 28};
-
-    uint8_t status = Reset;
-
-    uint8_t checkPoint = 0;
-    uint32_t timer = 0;
-    uint32_t timerStrip = 0;
-    uint32_t timerStripType = 0;
-    uint8_t valLast = 0xFF;
-    String strAudio = "";
-    Adafruit_NeoPixel strip(14 /*60*/, 4, NEO_RGB + NEO_KHZ800);
-    stripType_FlyingShip_e stripType = Standby;
-    const uint8_t ONLOCK = B00100000;
-    const uint8_t OFFLOCK = B00000000;
-    bool ifLock = true;
-    bool isFast = true;
-    bool isFailed = false;
-    bool isCorrect = false;
-    static doStyle4_s doStyle4_struct;
+    pinMode(13, INPUT_PULLUP);
+    uint16_t BallTime = 0;
+    uint16_t BallTimeAdd = 0;
     while (1)
     {
-        switch (status)
+        if (!digitalRead(13))
         {
-        case Reset:
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "RST!\n");
-            index_FlyingShip = 0;
-            saveIndex = 0;
-            ifLock = true;
-            checkPoint = 0;
-            isFast = true;
-            if (isFailed)
-                isFailed = false;
-            else
-                valLast = 0xFF;
-            isCorrect = false;
-            status++;
-            break;
-        case Wait:
-            status++;
-            break;
-        case Play:
+            BallTime++;
+            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機被實體按鈕觸發了~");
+        }
+        if (xQueueReceive(queueBallTime, &BallTimeAdd, 0) == pdPASS)
+            BallTime += BallTimeAdd;
+
+        if (BallTime > 0)
         {
-            if (isFast)
+            bool dir = 0;
+            uint16_t speed = 50;
+            uint8_t acc = 200;
+            uint32_t pulses = 0x42A * BallTime;
+            uint16_t dalayTime = 400;
+            uint8_t parameter[6];
+            parameter[0] = (dir << 7) + ((speed >> 8) & 0xFF);
+            parameter[1] = speed & 0xFF;
+            for (uint8_t i = 0; i < 4; i++)
+                parameter[2 + i] = (pulses >> (8 * (3 - i))) & 0xFF;
+            uint8_t dataWrite[] = {0xFA, 0x01, 0xFD, parameter[0], parameter[1], acc, parameter[2],
+                                   parameter[3], parameter[4], parameter[5], 0x00};
+            uint16_t crc = 0;
+            for (uint8_t i = 0; i < sizeof(dataWrite); i++)
+                crc += dataWrite[i];
+            dataWrite[sizeof(dataWrite) - 1] = crc & 0xFF;
+            Serial1.write(dataWrite, sizeof(dataWrite));
+            _DELAY_MS(dalayTime);
+            if (Serial1.available())
             {
-                isFast = false;
-                stripType = Standby;
-                timerStrip=millis();
-                doStyle4_struct.strip = &strip;
-                doStyle4_struct.stripType = &stripType;
-                doStyle4_struct.timerStrip = timerStrip;
-                doStyle4_struct.timerStripType = timerStripType;
-                xQueueSend(queuedoStyle4, &doStyle4_struct, portMAX_DELAY);
-                /*
-                                doStyle4(&strip, &stripType, timerStrip, timerStripType);
-                                if (xSemaphoreTake(xMutex, portMAX_DELAY))
-                                {
-                                    strip.show();
-                                    _DELAY_MS(1);
-                                    xSemaphoreGive(xMutex);
-                                }
-                                */
-            }
-            static uint8_t j = 0;
-
-            if (!isFailed && !isCorrect)
-            {
-                mcp.writeGPIOA((1 << j) + (ifLock ? ONLOCK : OFFLOCK));
-                _DELAY_MS(10);
-                uint8_t data = mcp.readGPIOB() ^ 0xFF;
-                // 每個port讀取
-                for (uint8_t i = 0; i < 6; i++)
-                { // 如果檢測到磁簧
-                    if (data & (1 << i))
-                    {
-                        uint8_t val = j * 6 + i;
-                        // 如果和上次位置不一樣而且之前沒走錯
-                        if (valLast != val)
-                        { // 如果放正確第一則重頭開始遊戲
-                            if (val == ansValue[0])
-                            {
-                                index_FlyingShip = 0;
-                                saveIndex = 0;
-                            }
-                            valLast = val;
-                            // 如果放對位置
-                            if (ansValue[index_FlyingShip] == val)
-                            {
-                                bool checksw = false;
-                                for (uint8_t iCheck = 0; iCheck < sizeof(checkValue); iCheck++)
-                                {
-                                    // 如果到紀錄點
-                                    if (checkValue[iCheck] == index_FlyingShip)
-                                    {
-                                        saveIndex = index_FlyingShip;
-                                        if (iCheck == sizeof(checkValue) - 1)
-                                        {
-                                            status++;
-                                            isFast = true;
-                                        }
-                                        checksw = true;
-                                        break;
-                                    }
-                                }
-                                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "正確!%d\n", val);
-                                isCorrect = true;
-
-                                if (checksw)
-                                {
-                                    strAudio = "{\"name\": \"/Correct.mp3\"}";
-                                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
-                                    stripType = stripType_FlyingShip_e(stripType | Save);
-
-                                    timerStripType = millis();
-                                    doStyle4_struct.strip = &strip;
-                                    doStyle4_struct.stripType = &stripType;
-                                    doStyle4_struct.timerStrip = timerStrip;
-                                    doStyle4_struct.timerStripType = timerStripType;
-                                    xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
-                                }
-                                else
-                                {
-                                    strAudio = "{\"name\": \"/Touch.mp3\"}";
-                                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
-                                    stripType = stripType_FlyingShip_e(stripType | Correct);
-                                    timerStripType = millis();
-                                    timerStrip = millis();
-                                    doStyle4_struct.strip = &strip;
-                                    doStyle4_struct.stripType = &stripType;
-                                    doStyle4_struct.timerStrip = timerStrip;
-                                    doStyle4_struct.timerStripType = timerStripType;
-                                    xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
-                                }
-                                index_FlyingShip++;
-                            }
-                            else
-                            {
-                                //[ ]取消紀錄點功能
-                                // index_FlyingShip = saveIndex;
-                                isFailed = true;
-                                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "錯誤!%d\n", +val);
-                                strAudio = "{\"name\": \"/Mistake.mp3\"}";
-                                xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
-                                timerStrip = millis();
-                                timerStripType = timerStrip;
-                                stripType = stripType_FlyingShip_e(stripType | Mistake);
-                                doStyle4_struct.strip = &strip;
-                                doStyle4_struct.stripType = &stripType;
-                                doStyle4_struct.timerStrip = timerStrip;
-                                doStyle4_struct.timerStripType = timerStripType;
-                                xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
-                            }
-                        }
-                    }
+                uint8_t recallData[12];
+                for (uint8_t i = 0; i < 12 && Serial1.available(); i++)
+                {
+                    recallData[i] = Serial1.read();
+                    Serial.printf("0x%02x,", recallData[i]);
+                    _DELAY_MS(5);
                 }
-                j = (j + 1) % 5;
+                Serial.println();
+                if (recallData[0] == 0xFB &&
+                    recallData[1] == 0x01 &&
+                    recallData[2] == 0xFD &&
+                    recallData[3] == 0x01 &&
+                    recallData[4] == 0xFA)
+                {
+                    BallTime = 0;
+                }
             }
-
-            if (isFailed && millis() > timerStripType + 2000)
-                status = Reset;
-            if (isCorrect && millis() > timerStripType + 500)
-                isCorrect = false;
         }
-        break;
-        case End:
+        _DELAY_MS(100);
+
+        if (Serial1.available())
         {
-            if (isFast)
-            {
-                isFast = false;
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "成功!\n");
-                strAudio = "{\"name\": \"/Correct.mp3\"}";
-                xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
-                ifLock = false;
-                mcp.writeGPIOA((ifLock ? ONLOCK : OFFLOCK));
-                timer = millis();
-                timerStrip = timer;
-                stripType = Finish;
-                doStyle4_struct.strip = &strip;
-                doStyle4_struct.stripType = &stripType;
-                doStyle4_struct.timerStrip = timerStrip;
-                doStyle4_struct.timerStripType = timerStripType;
-                xQueueSend(queuedoStyle4, &doStyle4_struct, 10);
-            }
-            if (millis() > timer + 8000)
-            {
-                isFast = true;
-                status = Reset;
-            }
+            while (Serial1.available())
+                Serial.printf("0x%02X,", Serial1.read());
+            Serial.println();
         }
-        break;
-        default:
-            break;
-        }
-
-        _DELAY_MS(20);
     }
 }
 
 void taskPCM5102(void *pvParam)
 {
+
     DFRobotDFPlayerMini myDFPlayer;
-    uint8_t SoundPlayerLevel[2] = {0, 0};
     Serial2.begin(9600);
     bool state = false;
     state = myDFPlayer.begin(Serial2, /*isACK = */ true, /*doReset = */ true);
@@ -574,55 +148,54 @@ void taskPCM5102(void *pvParam)
     else
         Serial.println("SD卡正常!!");
 
-    // Audio *audio = (Audio *)pvParam;
-    Audio *audio = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
-    audio->setPinout(pinBCLK, pinLRC, pinDOUT);
-    audio->setVolume(21); // 0...21
+    Audio *audio = (Audio *)pvParam;
+    audio->setPinout(27, 25, 26);
+    audio->setVolume(11); // 0...21
+    /*
+    Audio *audio[2];
+audio[0] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_0);
+audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
+    uint8_t type = audio->getI2sPort();
 
-    String StrJson = "";
-    JsonDocument doc;
+    if (type == 0)
+    {
+        audio->setPinout(13, 14, 12);
+        audio->setVolume(5); // 0...21
+    }
+    else if (type == 1)
+    {
+        audio->setPinout(27, 25, 26);
+        audio->setVolume(5); // 0...21
+    }
+    else
+    {
+        while (1)
+        {
+            _DELAY_MS(1000);
+        }
+    }
+   */
+
+    String mp3Name = "";
+    uint16_t mp3Value = 0;
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘可用內存%d\n", esp_get_free_heap_size());
     while (1)
     {
-        if (xQueueReceive(queuePCM5102, &StrJson, 0) == pdPASS)
+
+        if (xQueueReceive(queuePCM5102, &mp3Name, 0) == pdPASS)
         {
-            DeserializationError error = deserializeJson(doc, StrJson);
-            if (error)
+            if (mp3Name == "")
             {
-                //_CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
-                //_CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
+                SoundPlayerLevel[0] = 0;
+                audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
             }
             else
             {
-                if (doc.containsKey("name"))
-                {
-                    if (doc["name"] == "")
-                    {
-                        SoundPlayerLevel[0] = 0;
-                        audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
-                        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
-                    }
-                    else
-                    {
-                        //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%s\n", doc["name"].as<String>().c_str());
-                        audio->connecttoFS(SD, doc["name"].as<String>().c_str());
-                        audio->loop();
-                    }
-                }
-                if (doc.containsKey("value") && state)
-                {
-                    myDFPlayer.disableLoop();
-                    myDFPlayer.stop();
-                    uint16_t mp3Value = doc["value"].as<uint16_t>();
-                    if (mp3Value != 0)
-                    {
-                        myDFPlayer.play(mp3Value);
-                        // myDFPlayer.enableLoop();
-                    }
-                    if (myDFPlayer.available())
-                    {
-                        // printDetail(myDFPlayer.readType(), myDFPlayer.read()); // Print the detail message from DFPlayer to handle different errors and states.
-                    }
-                }
+                audio->connecttoFS(SD, mp3Name.c_str());
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%d\n", mp3Name.c_str());
+
+                audio->loop();
             }
         }
         if (SoundPlayerLevel[0] != 0)
@@ -633,45 +206,617 @@ void taskPCM5102(void *pvParam)
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放結束!等級歸0\n");
             }
         }
-        if (xSemaphoreTake(xMutex, portMAX_DELAY))
-        {
-            audio->loop();
+        audio->loop();
 
-            _DELAY_MS(1);
-            xSemaphoreGive(xMutex);
+        if (xQueueReceive(queueDFPlayer, &mp3Value, 0) == pdPASS)
+        {
+            if (state)
+            {
+                myDFPlayer.disableLoop();
+                myDFPlayer.stop();
+                if (mp3Value != 0)
+                {
+                    myDFPlayer.play(mp3Value);
+                    myDFPlayer.enableLoop();
+                }
+            }
         }
-        vTaskDelay(3);
+        if (myDFPlayer.available())
+        {
+            printDetail(myDFPlayer.readType(), myDFPlayer.read()); // Print the detail message from DFPlayer to handle different errors and states.
+        }
+        vTaskDelay(2);
     }
 }
-void taskWS2812(void *pvParam)
+/**
+ * @brief 計時器程式
+ *
+ */
+/*
+void taskTimer(void *pvParam)
 {
-    doStyle4_s inData;
-    doStyle4_s staticData;
-    staticData.strip = nullptr;
-    while (staticData.strip == nullptr)
+    // uint16_t second = 0;
+    String nowsecond = "00:00";
+    uint8_t status[2] = {0, 0};
+    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
+    const uint8_t pinOut[2]{22, 21};
+    const uint8_t pinin[]{36, 39, 34, 35, 32};
+    enum eStatus
     {
-        if (xQueueReceive(queuedoStyle4, &inData, 0) == pdPASS)
-        {
-            staticData = inData;
-        }
-        _DELAY_MS(20);
-    }
+        STOP,  // 停止(不輸出)
+        RUN,   // 倒數中
+        PAUSE, // 暫停倒數
+        END,   // 停止(輸出訊號)
+        TEST,
+    };
+    SPI.begin(pinSH, 21, pinDS);
+    pinMode(pinDS, OUTPUT); // MO
+    pinMode(pinSH, OUTPUT); // SCK
+    pinMode(pinST, OUTPUT); // CS
+    pinMode(pinOut[0], OUTPUT);
+    pinMode(pinOut[1], OUTPUT);
+
+    Timer_status = TEST;
+    time_t time = 0;
+    tmTimer = *localtime(&time);
+    /*
+    while (xQueueReceive(queueTimer, &second, 100) != pdPASS)
+        _DELAY_MS(1000);
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "已收到秒數!%d\n", second);
+    nowsecond = second;
+    status[i] = RUN;
+
+    uint8_t timeNum = 0;
+    bool isNeedPrint = 1;
+    bool isSet = false;
     while (1)
     {
-        if (xQueueReceive(queuedoStyle4, &inData, 0) == pdPASS)
+        status[0] = Timer_status;
+        // 如果狀態改變或處於倒數狀態
+        if (status[0] != status[1] || status[0] == RUN)
         {
-            staticData = inData;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "狀態為:%d,%d\n", status[0], status[1]);
+            status[1] = status[0];
+            switch (status[0])
+            {
+            case STOP:
+                digitalWrite(pinOut[0], 1);
+                digitalWrite(pinOut[1], 0);
+                nowsecond = Timer_newSecond;
+                isNeedPrint = 1;
+                isSet = true;
+                tmTimer.tm_min = Timer_newSecond.substring(0, 2).toInt();
+                tmTimer.tm_sec = Timer_newSecond.substring(Timer_newSecond.length() - 2).toInt();
+                char buffer[10];
+                if (millis() % 1000 < 500)
+                    sprintf(buffer, "%02d:%02d", tmTimer.tm_min, tmTimer.tm_sec);
+                else
+                    sprintf(buffer, "%02d%02d", tmTimer.tm_min, tmTimer.tm_sec);
+                nowsecond = buffer;
+                set74HC595(nowsecond);
+                break;
+            case END:
+                digitalWrite(pinOut[0], 0);
+                digitalWrite(pinOut[1], 1);
+                set74HC595("00:00");
+                break;
+            case PAUSE:
+                break;
+            case RUN:
+            {
+                char buffer[10];
+                if (isNeedPrint)
+                {
+
+                    if (!isSet)
+                    {
+                        // 將 tm 轉換為 time_t 型別
+                        time_t time = mktime(&tmTimer);
+                        if (tmTimer.tm_min != 0 || tmTimer.tm_sec != 0)
+                        {
+                            // 扣 1 秒
+                            time--;
+                            // 將 time 轉換為 tm 型別
+                            tmTimer = *localtime(&time);
+                            if (tmTimer.tm_min == 0 && tmTimer.tm_sec == 0)
+                                Timer_status = END;
+                        }
+                        else
+                            Timer_status = END;
+                    }
+                    else
+                        isSet = false;
+                    sprintf(buffer, "%02d:%02d", tmTimer.tm_min, tmTimer.tm_sec);
+                    isNeedPrint = !isNeedPrint;
+                }
+                else
+                {
+                    sprintf(buffer, "%02d%02d", tmTimer.tm_min, tmTimer.tm_sec);
+                    isNeedPrint = !isNeedPrint;
+                }
+                nowsecond = buffer;
+                set74HC595(nowsecond);
+            }
+            break;
+            case TEST:
+                for (byte i = 0; i < 10; i++)
+                {
+                    set74HC595(String(i) + String(i) + (i % 2 == 0 ? ":" : "") + String(i) + String(i));
+                    delay(500);
+                }
+                Timer_status = END;
+                break;
+            }
         }
-        doStyle4(staticData.strip, staticData.stripType, staticData.timerStrip, staticData.timerStripType);
-        if (xSemaphoreTake(xMutex, portMAX_DELAY))
-        {
-            staticData.strip->show();
-            _DELAY_MS(1);
-            xSemaphoreGive(xMutex);
-        }
-        _DELAY_MS(20);
+        _DELAY_MS(500);
     }
 }
+/*
+/**
+ * @brief
+ *
+ */
+void taskFQ512(uint16_t cmd)
+{
+    // Tx:000514-01 06 1F 41 00 01 1F CA
+    // Tx:000515-01 06 1F 41 00 00 DE 0A
+
+    CRC16_parameter_t Modbus_CRC;
+    uint8_t dataWrite[] = {0x01, 0x06, 0x1F, 0x41, uint8_t((cmd >> 8) & 0xFF), uint8_t(cmd & 0xFF), 0x00, 0x00};
+    uint8_t dataLength = sizeof(dataWrite);
+    uint16_t crc = CRC_16(dataWrite, dataLength - 2, &Modbus_CRC);
+    dataWrite[dataLength - 1] = crc >> 8;
+    dataWrite[dataLength - 2] = crc & 0xFF;
+    for (uint8_t i = 0; i < dataLength; i++)
+    {
+        Serial.printf("0x%02X,", dataWrite[i]);
+        Serial2.write(dataWrite[i]);
+    }
+    Serial.println();
+
+    _DELAY_MS(100);
+    /*
+        for (uint8_t i = 0; i < sizeof(dataWrite); i++)
+            Serial.printf("%02x,", dataWrite[i]);
+        Serial.println();
+        */
+}
+
+/**
+ * @brief 武器燈
+ *
+ */
+void taskWeaponLight(void *pvParam)
+{
+
+    JsonDocument *doc = (JsonDocument *)pvParam;
+    const uint8_t pinOut[]{25, 26, 27, 33};
+    for (size_t i = 0; i < sizeof(pinOut); i++)
+    {
+        ledcSetup(i, 100, 12);
+        ledcAttachPin(pinOut[i], i);
+        ledcWrite(i, 0);
+    }
+    Adafruit_NeoPixel strip((*doc).containsKey("Length") ? (*doc)["Length"] : 11,
+                            (*doc).containsKey("Pin") ? (*doc)["Pin"] : 15,
+                            NEO_GRB + NEO_KHZ800);
+    strip.begin();
+    strip.show();
+
+    uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
+    uint32_t color = 0;
+    uint8_t num = 0;
+    uint32_t batterTimer = 0;
+    uint8_t level = 0;
+    while (1)
+    {
+        if (xQueueReceive(queueWeaponLight, &level, 0) == pdPASS)
+        {
+            (*doc)["Level"].set(level);
+        }
+
+        /*
+ 30~39 杖
+ 40~49 矛
+ 50~59 錘
+ 60~69 鞭
+ 70~79 劍
+ 80~89 斧
+ */
+
+        uint16_t limitPWM[] = {25, 25, 25, 0};
+        bool isAutoPam = true;
+        if (
+            (*doc).containsKey("_LIGHT_0") &&
+            (*doc).containsKey("_LIGHT_1") &&
+            (*doc).containsKey("_LIGHT_2") &&
+            (*doc).containsKey("_LIGHT_3"))
+        {
+            if ((*doc)[_LIGHT_0].as<uint16_t>() != 0 ||
+                (*doc)[_LIGHT_1].as<uint16_t>() != 0 ||
+                (*doc)[_LIGHT_2].as<uint16_t>() != 0 ||
+                (*doc)[_LIGHT_3].as<uint16_t>() != 0)
+                isAutoPam = false;
+        }
+        if (isAutoPam)
+        {
+            switch (id)
+            {
+            case 40 ... 49:
+                limitPWM[0] = 25;
+                limitPWM[1] = 25;
+                limitPWM[2] = 25;
+                break;
+            case 50 ... 59:
+                limitPWM[0] = 25;
+                limitPWM[1] = 180; // 1500
+                break;
+            case 60 ... 69:
+                limitPWM[0] = 125;
+                limitPWM[1] = 125;
+                limitPWM[2] = 125;
+                break;
+            case 70 ... 79:
+                limitPWM[0] = 125;
+                limitPWM[1] = 125;
+                limitPWM[2] = 125;
+                break;
+            case 80 ... 89:
+                limitPWM[0] = 80;
+                limitPWM[1] = 80;
+                limitPWM[2] = 70;
+                break;
+            }
+        }
+        //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "等級為%d\n", (*doc)["Level"].as<uint8_t>());
+        switch ((*doc)["Level"].as<uint8_t>())
+        {
+        case 1:
+        {
+            ledcWrite(1, 0);
+            ledcWrite(2, 0);
+            ledcWrite(3, 0);
+            switch (num)
+            {
+            case 1 ... 5:
+            case 16 ... 20:
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                    strip.setPixelColor(i, strip.Color(255, 0, 0));
+                ledcWrite(0, limitPWM[0]);
+                break;
+            case 6 ... 15:
+            case 21 ... 60:
+                for (uint16_t i = 0; i < strip.numPixels(); i++)
+                    strip.setPixelColor(i, 0);
+                ledcWrite(0, 0);
+                break;
+            default:
+                num = 0;
+                break;
+            }
+            num++;
+        }
+        break;
+        case 2:
+        {
+            ledcWrite(2, 0);
+            ledcWrite(3, 0);
+            int16_t cycle = 2000;
+            int16_t cycle_color = 1500;
+            int16_t brightness = 155;
+            uint16_t val = map(millis() % cycle, 0, cycle, 0, strip.numPixels() * 2);
+            color = setRainbowRGB(map(millis() % cycle_color, 0, cycle_color, 0, 1536));
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            {
+                uint32_t ws2812color = color;
+                uint8_t b = (i <= val && val - i <= strip.numPixels() ? map(val - i, 0, strip.numPixels(), brightness, 0) : 0);
+                ws2812color = setBrightnessRGB(ws2812color, b);
+                strip.setPixelColor(i, ws2812color);
+            }
+            uint16_t ledval = millis() % cycle;
+            for (uint8_t i = 0; i < 2; i++)
+            {
+                if (ledval <= cycle / 2)
+                    brightness = map(ledval, 0, cycle / 2, 0, limitPWM[i]);
+                else
+                    brightness = map(ledval, cycle / 2, cycle, limitPWM[i], 0);
+                ledcWrite(i, brightness);
+            }
+        }
+        break;
+        case 3:
+        {
+            int16_t cycle = 1000;
+            int16_t brightness = 100;
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            {
+                color = setRainbowRGB((map(millis() % cycle, 0, cycle, 1536, 0) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                color = setBrightnessRGB(color, brightness);
+                strip.setPixelColor(i, color);
+            }
+            for (uint8_t i = 0; i < 3; i++)
+                ledcWrite(i, limitPWM[i]);
+        }
+        break;
+        case 98:
+            ledcWrite(0, limitPWM[0]);
+            ledcWrite(1, limitPWM[1]);
+            ledcWrite(2, limitPWM[2]);
+            ledcWrite(3, limitPWM[3]);
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            {
+                color = setRainbowRGB((map(millis() % 1000, 0, 1000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                color = setBrightnessRGB(color, 125);
+                strip.setPixelColor(i, color);
+            }
+            break;
+        case 99:
+        {
+            switch (num)
+            {
+            case 0 ... 20:
+                ledcWrite(0, map(num, 0, 20, 0, limitPWM[0]));
+                ledcWrite(1, 0);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+            case 21 ... 40:
+                ledcWrite(0, limitPWM[0]);
+                ledcWrite(1, map(num, 21, 40, 0, limitPWM[1]));
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+            case 41 ... 60:
+                ledcWrite(0, limitPWM[0]);
+                ledcWrite(1, limitPWM[1]);
+                ledcWrite(2, map(num, 41, 60, 0, limitPWM[2]));
+                ledcWrite(3, 0);
+                break;
+            case 61 ... 80:
+                ledcWrite(0, limitPWM[0]);
+                ledcWrite(1, limitPWM[1]);
+                ledcWrite(2, map(num, 61, 80, limitPWM[2], 0));
+                ledcWrite(3, 0);
+                break;
+            case 81 ... 100:
+                ledcWrite(0, limitPWM[0]);
+                ledcWrite(1, map(num, 81, 100, limitPWM[1], 0));
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+            case 101 ... 120:
+                ledcWrite(0, map(num, 101, 120, limitPWM[0], 0));
+                ledcWrite(1, 0);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+                break;
+
+            default:
+                num = 0;
+                break;
+            }
+            num++;
+
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            {
+                color = setRainbowRGB((map(millis() % 1000, 0, 1000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
+                color = setBrightnessRGB(color, num < 60 ? map(num, 0, 61, 0, 125) : map(num, 61, 121, 125, 0));
+                strip.setPixelColor(i, color);
+            }
+        }
+        break;
+        default:
+        {
+            ledcWrite(0, 0);
+            ledcWrite(1, 0);
+            ledcWrite(2, 0);
+            ledcWrite(3, 0);
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+                strip.setPixelColor(i, 0);
+        }
+        break;
+        }
+
+        strip.show();
+        _DELAY_MS((*doc)["DelayTime"].as<uint16_t>());
+        /**
+         * @brief 每10秒送目前電池電壓值
+         *
+         */
+        // _E2JS(_BATTERY_VAL) = roundf(analogRead(32) * 0.0017465437788018 * 100) / 100;
+        if (millis() > batterTimer + 10000)
+        {
+            if (socketIO.isConnected())
+            {
+                float number = analogRead(32) * 0.0017465437788018; // 假设这是你的浮点数值
+                int roundedNumber = round(number * 100);            // 将浮点数乘以100后四舍五入为整数
+                _E2JS(_BATTERY_VAL) = roundedNumber / 100.0;        // 将四舍五入后的整数除以100得到保留两位小数的浮点数
+                const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
+                JsonDocument doc;
+                JsonArray array = doc.to<JsonArray>();
+                array.add("MissGame");
+                JsonObject param1 = array.add<JsonObject>();
+                // JsonObject param1 = array.createNestedObject();
+                param1["battery"] = roundedNumber / 100.0; //?不知為何 _E2JS(_BATTERY_VAL)還原會怪怪的
+                param1["id"] = _E2JS(_MODULE_ID).as<uint16_t>();
+
+                String output;
+                serializeJson(doc, output);
+                // serializeJsonPretty(doc, Serial);
+                socketIO.sendEVENT(output);
+            }
+            batterTimer = millis();
+        }
+    }
+}
+/**
+ * @brief 蜘蛛
+ *
+ * @param pvParam
+ */
+void taskSpider(void *pvParam)
+{
+    // 初始化
+    const uint8_t pinOut[]{25, 26, 27, 33};
+    for (size_t i = 0; i < sizeof(pinOut); i++)
+    {
+        pinMode(pinOut[i], OUTPUT);
+        digitalWrite(pinOut[i], 0);
+    }
+    String StrJson = "";
+    JsonDocument doc;
+    while (1)
+    {
+        // 如果收到隊列
+        if (xQueueReceive(queueJson, &StrJson, 0) == pdPASS)
+        {
+            // 反序列化隊列資料
+            DeserializationError error = deserializeJson(doc, StrJson);
+            if (error)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
+                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
+            }
+            else
+            {
+                // 如果包含value
+                if (doc.containsKey("value"))
+                {
+                    // 變更馬達輸出狀態
+                    if (doc["value"].as<int16_t>() > 0)
+                    {
+                        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "開始動作!");
+                        for (size_t i = 0; i < sizeof(pinOut); i++)
+                        {
+                            digitalWrite(pinOut[i], 1);
+                        }
+                    }
+                    else
+                    {
+                        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "結束動作!");
+
+                        for (size_t i = 0; i < sizeof(pinOut); i++)
+                        {
+                            digitalWrite(pinOut[i], 0);
+                        }
+                    }
+                }
+            }
+        }
+        _DELAY_MS(100);
+    }
+}
+
+/**
+ * @brief 訊號延長器
+ *
+ */
+void taskSignalExtender()
+{
+    const uint8_t pinOut = 13, pinIn = 15, pinLED = 2;
+    pinMode(pinIn, INPUT_PULLUP);
+    pinMode(pinOut, OUTPUT);
+    pinMode(pinLED, OUTPUT);
+    digitalWrite(pinOut, 0);
+    digitalWrite(pinLED, 0);
+    uint8_t numCoin = 0;
+    uint32_t numTimer = 0;
+    uint16_t numWriteLong = 500;
+    bool isCoinEnter = false;
+    bool swOnOff = false;
+    while (1)
+    {
+        bool statuses = digitalRead(pinIn);
+        // 如果有訊號就+1並等待恢復
+        if (!statuses && !isCoinEnter)
+        {
+            isCoinEnter = true;
+            numCoin++;
+        }
+        else if (statuses && isCoinEnter)
+        {
+            isCoinEnter = false;
+        }
+        // 如果計數大於0就持續的ON/OFF固定毫秒數
+        if (numCoin > 1)
+        {
+            // ON週期
+            if (numTimer == 0 && !swOnOff)
+            {
+                swOnOff = true;
+                numTimer = millis();
+                digitalWrite(pinOut, 1);
+                digitalWrite(pinLED, 1);
+            } // OFF週期
+            else if (numTimer > 0 && millis() > numTimer + numWriteLong && swOnOff)
+            {
+                swOnOff = false;
+                numTimer = millis();
+                digitalWrite(pinOut, 0);
+                digitalWrite(pinLED, 0);
+            } // 計數-1並重置
+            else if (numTimer > 0 && millis() > numTimer + numWriteLong && !swOnOff)
+            {
+                numCoin--;
+                numTimer = 0;
+            }
+        }
+        _DELAY_MS(1);
+    }
+}
+/**
+ * @brief
+ *
+ */
+void taskLINE_POST()
+{
+    while (1)
+    {
+        String str = "";
+        if (WiFi.status() == WL_CONNECTED)
+        { // 檢查是否連接 WiFi
+            if (xQueueReceive(queueLINE_POST, &str, 100) == pdPASS)
+            {
+                JsonDocument doc;
+                DeserializationError error = deserializeJson(doc, str);
+                if (error)
+                {
+                    _CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
+                }
+                else if (doc.containsKey("message"))
+                {
+                    HTTPClient http;
+                    http.begin("https://notify-api.line.me/api/notify"); // LINE Notify API URL
+                    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+                    http.addHeader("Authorization", "Bearer fnBwOwWj1fGtJNq8AzUxYGH0rOFI6gxCNynpjcTV2v6");
+
+                    String postData = "message=" + doc["message"].as<String>();
+
+                    int httpResponseCode = http.POST(postData);
+
+                    if (httpResponseCode > 0)
+                    {
+                        String response = http.getString();
+                        Serial.println("HTTP Response code: " + String(httpResponseCode));
+                        Serial.println("Response: " + response);
+                    }
+                    else
+                    {
+                        Serial.println("Error on sending POST: " + String(httpResponseCode));
+                    }
+
+                    http.end(); // 釋放資源
+                }
+            }
+        }
+        else
+        {
+            Serial.println("WiFi Disconnected");
+        }
+        _DELAY_MS(1);
+    }
+}
+
 /**
  * @brief 將數字格式輸出到74HC595
  *
@@ -683,199 +828,115 @@ void set74HC595(String newTime)
                                     B10110110, B10111110, B11100000, B11111110, B11110110},
                                    {B11111100, B00001100, B11011010, B10011110, B00101110,
                                     B10110110, B11110110, B00011100, B11111110, B10111110}};
+    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
     String str = newTime;
-    SPI.beginTransaction(SPISettings(1000000, LSBFIRST, SPI_MODE3));
+    // SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
     digitalWrite(pinST, LOW);
     for (int8_t i = sizeof(str) - 1, j = i; i >= 0; i--, j--)
     {
         if (str[i] == ':' || str[i] == '.' ? 1 : 0)
             continue;
         uint8_t data = bitNumber[i < 2 ? 0 : 1][str[i] - '0'];
-        if (str[i] == '-')
-            data = B00000010;
-        else if (str[i] == ' ')
-            data = B00000000;
         SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
+        // SPI.transfer(1 << i);
     }
     digitalWrite(pinST, HIGH);
-    SPI.endTransaction();
+    //    SPI.endTransaction();
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘時間: %s\n", str.c_str());
 }
-void doStyle1(int value)
+/**
+ * @brief MP3模組的細節
+ *
+ * @param type
+ * @param value
+ */
+void printDetail(uint8_t type, int value)
 {
-    byte arr[]{B00000100, B00001000, B00010000, B00100000, B01000000, B10000000};
-    SPI.beginTransaction(SPISettings(1000000, LSBFIRST, SPI_MODE3));
-    digitalWrite(pinST, LOW);
-    SPI.transfer(arr[value]);
-    SPI.transfer(arr[value]);
-    digitalWrite(pinST, HIGH);
-    SPI.endTransaction();
-}
-void doStyle2(Adafruit_NeoPixel *strip, int value, uint32_t timer)
-{
-    const uint16_t maxValue = 1000;
-    uint32_t newValue = (millis() - timer) % maxValue;
-    if (newValue < maxValue / 2)
+    switch (type)
     {
-        newValue = map(newValue, 0, maxValue / 2, 0, 255);
+    case TimeOut:
+        Serial.println(F("Time Out!"));
+        break;
+    case WrongStack:
+        Serial.println(F("Stack Wrong!"));
+        break;
+    case DFPlayerCardInserted:
+        Serial.println(F("Card Inserted!"));
+        break;
+    case DFPlayerCardRemoved:
+        Serial.println(F("Card Removed!"));
+        break;
+    case DFPlayerCardOnline:
+        Serial.println(F("Card Online!"));
+        break;
+    case DFPlayerUSBInserted:
+        Serial.println("USB Inserted!");
+        break;
+    case DFPlayerUSBRemoved:
+        Serial.println("USB Removed!");
+        break;
+    case DFPlayerPlayFinished:
+        Serial.print(F("Number:"));
+        Serial.print(value);
+        Serial.println(F(" Play Finished!"));
+        break;
+    case DFPlayerError:
+        Serial.print(F("DFPlayerError:"));
+        switch (value)
+        {
+        case Busy:
+            Serial.println(F("Card not found"));
+            break;
+        case Sleeping:
+            Serial.println(F("Sleeping"));
+            break;
+        case SerialWrongStack:
+            Serial.println(F("Get Wrong Stack"));
+            break;
+        case CheckSumNotMatch:
+            Serial.println(F("Check Sum Not Match"));
+            break;
+        case FileIndexOut:
+            Serial.println(F("File Index Out of Bound"));
+            break;
+        case FileMismatch:
+            Serial.println(F("Cannot Find File"));
+            break;
+        case Advertise:
+            Serial.println(F("In Advertise"));
+            break;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+uint16_t CRC_16(byte *data, uint16_t len, CRC16_parameter_t *CRC16_parameter)
+{
+    uint16_t val = CRC16_parameter->Initialvalue;
+    uint16_t Polynomial = 0;
+    if (CRC16_parameter->Inputinversion)
+    {
+        for (uint16_t i = 0x8000, j = 1; i != 0; i >>= 1, j <<= 1)
+            CRC16_parameter->Polynomial &j ? Polynomial += i : Polynomial += 0;
     }
     else
+        Polynomial = CRC16_parameter->Polynomial;
+    while (len--)
     {
-        newValue = map(newValue, maxValue / 2 + 1, maxValue, 255, 0);
-    }
-    strip->setPixelColor(0, value == 1 ? newValue : 0, value == 2 ? newValue : 0, value == 3 ? newValue : 0);
-    strip->setPixelColor(1, value == 4 ? newValue : 0, value == 5 ? newValue : 0, value == 6 ? newValue : 0);
-    strip->show();
-    _DELAY_MS(10);
-}
-void doStyle3(Adafruit_NeoPixel *strip, uint16_t valMax, uint16_t value)
-{
-    if (value > valMax * 0.8)
-    {
-        strip->setPixelColor(0, 255, 255, 255);
-        strip->setPixelColor(1, 255, 255, map(value, valMax * 0.8, valMax, 0, 255));
-    }
-    else if (value > valMax * 0.6)
-    {
-        strip->setPixelColor(0, 255, 255, 255);
-        strip->setPixelColor(1, 255, map(value, valMax * 0.6, valMax * 0.8, 0, 255), 0);
-    }
-    else if (value > valMax * 0.4)
-    {
-        strip->setPixelColor(0, 255, 255, 255);
-        strip->setPixelColor(1, map(value, valMax * 0.4, valMax * 0.6, 0, 255), 0, 0);
-    }
-    else if (value > valMax * 0.2)
-    {
-        strip->setPixelColor(0, 255, 255, map(value, valMax * 0.2, valMax * 0.4, 0, 255));
-        strip->setPixelColor(1, 0);
-    }
-    else
-    {
-        strip->setPixelColor(0, 255, map(value, 0, valMax * 0.2, 0, 255), 0);
-        strip->setPixelColor(1, 0);
-    }
-    strip->show();
-    _DELAY_MS(10);
-}
+        val ^= *data++;
+        for (byte j = 0; j < 8; j++)
+        {
+            if (CRC16_parameter->Outputinversion)
+                val & 0x01 ? val = (val >> 1) ^ Polynomial : val = val >> 1;
 
-void doStyle4(Adafruit_NeoPixel *strip, stripType_FlyingShip_e *stripType, uint32_t timerStrip, uint32_t timerStripType)
-{
-    uint32_t color = 0;
-    if ((*stripType) & Standby)
-    {
-        if (saveIndex == 0 && index_FlyingShip > 0)
-        {
-            (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Standby) + Start);
-        }
-        uint16_t maxVal = (strip->numPixels() * 2000) / 60.0;
-        color = setRainbowRGB(map(millis() % (6000), 0, 6000, 0, 1536));
-        static int8_t b = strip->numPixels() - 1;
-        static bool dir = true;
-        uint8_t p = map(millis() % maxVal, 0, maxVal, 0, strip->numPixels());
-        // map((millis() - timerStripType) % (maxVal * strip->numPixels()), 0, maxVal * strip->numPixels(), strip->numPixels(), 0);
-        if (p == b)
-        {
-            b--;
-            if (b < 0)
-            {
-                dir = !dir;
-                b = strip->numPixels() - 1;
-            }
-        }
-        for (uint16_t i = 0; i < strip->numPixels(); i++)
-        {
-            if (p == i || (dir && i > b) || (!dir && i <= b))
-            {
-                strip->setPixelColor(i, color);
-            }
             else
-                strip->setPixelColor(i, 0);
-        }
-    }
-    if ((*stripType) & Start)
-    {
-        color = setRainbowRGB(map(millis() % 8000, 0, 8000, 0, 1536));
-
-        for (uint16_t i = 0; i < strip->numPixels(); i++)
-        {
-            if (checkValue[1] == saveIndex ||
-                (checkValue[0] == saveIndex && i <= (strip->numPixels() / 3) * 2) ||
-                (saveIndex == 0 && index_FlyingShip > 0 && i <= (strip->numPixels() / 3) * 1))
-            {
-                uint32_t color2 = color;
-                if ((checkValue[1] == saveIndex &&
-                     i > (strip->numPixels() / 3) * 2) ||
-
-                    (checkValue[0] == saveIndex &&
-                     i > (strip->numPixels() / 3) * 1 &&
-                     i <= (strip->numPixels() / 3) * 2) ||
-
-                    (saveIndex == 0 && index_FlyingShip &&
-                     i <= (strip->numPixels() / 3) * 1))
-                {
-                    uint16_t maxVal = 4000;
-                    uint16_t b = millis() % maxVal;
-
-                    if (b < maxVal / 2)
-                        color2 = setBrightnessRGB(color, map(b, 0, maxVal / 2, 0, 255));
-                    else
-                        color2 = setBrightnessRGB(color, map(b, maxVal / 2, maxVal, 255, 0));
-                }
-                strip->setPixelColor(i, color2);
-            }
-            else
-                strip->setPixelColor(i, 0);
+                val & 0x80 ? val = (val << 1) ^ Polynomial : val = val << 1;
         }
     }
 
-    if ((*stripType) & Save)
-    {
-        (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Save));
-    }
-    if ((*stripType) & Mistake)
-    {
-        if (millis() > timerStripType + 2000)
-        {
-            (*stripType) = (stripType_FlyingShip_e)((*stripType) ^ Mistake);
-        }
-        uint16_t maxVal = 1000;
-        uint16_t b = (millis() - timerStripType) % maxVal;
-        for (uint16_t i = 0; i < strip->numPixels(); i++)
-        {
-            if (b < maxVal / 2)
-                strip->setPixelColor(i, 255, 0, 0);
-            else
-                strip->setPixelColor(i, 0, 0, 0);
-        }
-    }
-    if ((*stripType) & Correct)
-    {
-        uint16_t maxVal = 500;
-        //(*stripType) = stripType_FlyingShip_e((*stripType) & Mistake);
-        if (millis() > timerStripType + maxVal)
-            (*stripType) = stripType_FlyingShip_e(((*stripType) ^ Correct));
-
-        uint8_t ledLength = 10;
-        int8_t b = map(millis() - timerStripType, 0, maxVal, 0, strip->numPixels() + ledLength);
-        for (uint16_t i = 0; i < strip->numPixels(); i++)
-        {
-            if (i < b && i > b - ledLength)
-            {
-                uint32_t color2 = setBrightnessRGB(color, map(b - i, 0, ledLength, 255, 0));
-                strip->setPixelColor(i, color2);
-            }
-            else
-                strip->setPixelColor(i, 0);
-        }
-    }
-
-    if ((*stripType) & Finish)
-    {
-        for (uint16_t i = 0; i < strip->numPixels(); i++)
-        {
-            uint32_t color = setRainbowRGB((map(millis() % 3000, 0, 3000, 0, 1536) + map(i, 0, strip->numPixels(), 0, 1536)) % 1536);
-            color = setBrightnessRGB(color, 125);
-            strip->setPixelColor(i, color);
-        }
-    }
+    return val ^ CRC16_parameter->XORvalue;
 }

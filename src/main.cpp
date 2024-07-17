@@ -102,6 +102,7 @@ void ConfigInit(int mode = 0)
  */
 void RTOS()
 {
+
   // WiFi連線任務
   xTaskCreatePinnedToCore(WiFiInit,
                           "WiFiInit",
@@ -110,6 +111,7 @@ void RTOS()
                           1,
                           NULL,
                           0);
+
   /*
     // 自動更新固件任務
     JsonDocument pvParam;
@@ -122,7 +124,7 @@ void RTOS()
                               1,
                               NULL,
                               0);
-                              */
+                 */
   // MQTT任務
   if (_E2JS(MQTT_BROKER_URL).as<String>() != "")
     xTaskCreatePinnedToCore(taskMQTT,
@@ -152,10 +154,38 @@ String myCmdTable_Json(JsonDocument *doc)
 {
   String rtStatus = "{\"State\":\"OK\"}";
   String errStatus = "{\"State\":\"ERROR\"}";
-
+  /*
+  for (JsonPair item : obj)
+  { // FIXME 記得補上所需的功能
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "Function:%s\n", item.key().c_str());
+    if (1 == 2)
+      ;
+    else
+    {
+      // 判斷是否包含在指令表，且透過Function參數執行的
+      // 如果是就覆寫鍵值
+      for (JsonPair item : obj)
+      {
+        const char *key = item.key().c_str();
+        if ((*Template_JsonPTC->getJsonObject()).containsKey(key) && item.value().containsKey("Function"))
+        {
+          serializeJson(item.value()["Function"], Serial);
+          Serial.println();
+          serializeJson((*Template_JsonPTC->getJsonObject())[key], Serial);
+          Serial.println();
+          (*Template_JsonPTC->getJsonObject())[key]["Value"].set(item.value()["Function"]);
+          serializeJson((*Template_JsonPTC->getJsonObject())[key], Serial);
+          Serial.println();
+        }
+      }
+    }
+  }
+*/
   JsonArray args = doc->as<JsonArray>();
   String eventName = args[0];
-  // serializeJsonPretty(args, Serial);
+
+  // serializeJsonPretty(*doc, Serial);
+
   if (eventName == "MissGame" || eventName == _E2JS(_MODULE_ID).as<String>())
   {
 
@@ -177,26 +207,134 @@ String myCmdTable_Json(JsonDocument *doc)
       // FIXME 補上自製模組的運作方法
       /**
        @brief id表
-       1~10 籃球機
-       11~20 飛行船
+       1~4 出幣機
+       5~6 出球機
+       7~9 計時器
+       10~19 bricks
+       20~29 音效播放模組
+       30~39 杖
+       40~49 矛
+       50~59 槌
+       60~69 鍊
+       70~79 劍
+       80~89 斧
+       90~99 DMX512模組
+       100 訊號延長器
        */
-      static String str = "";
       if (id == _E2JS(_MODULE_ID).as<uint16_t>())
       {
         switch (id)
         {
-        case 1 ... 10:
+        case 1 ... 4:
         {
-          str = "";
-          serializeJson(args[1], str);
-          xQueueSend(queueBasketball, &str, portMAX_DELAY);
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出幣機_%d執行%d次\n", id, id, args[1]["value"].as<uint16_t>());
+          uint16_t value = args[1]["value"].as<uint16_t>();
+          if (value > 0) // 如果是0會變成迴圈
+                         // CoinDispenser(value);
+            xQueueSend(queueBallTime, &value, portMAX_DELAY);
         }
         break;
-        case 11 ... 20:
+        case 5 ... 6:
         {
-          str = "";
-          serializeJson(args[1], str);
-          xQueueSend(queuePCM5102, &str, portMAX_DELAY);
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, args[1]["value"].as<uint16_t>());
+          uint16_t value = args[1]["value"].as<uint16_t>();
+          if (value > 0) // 如果是0會變成迴圈
+            xQueueSend(queueBallTime, &value, portMAX_DELAY);
+
+          break;
+        }
+        case 7 ... 9:
+        {
+
+          String Timer_newSecond = args[1].as<String>();
+          if (args[1].containsKey("value") || args[1].containsKey("status"))
+          {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 計時器倒數%s\n", id, args[1]["value"].as<const char *>());
+            xQueueSend(queueTimer, &Timer_newSecond, 0);
+          }
+
+          break;
+        }
+        case 10 ... 19:
+          break;
+        case 20 ... 29:
+          if (args[1].containsKey("value"))
+          {
+            /*
+                        uint16_t value = args[1]["value"].as<uint16_t>();
+                        if (args[1].containsKey("level"))
+                        {
+                          uint8_t type = value >= 10000 ? 1 : 0;
+                          if (args[1]["level"].as<uint16_t>() > SoundPlayerLevel[type])
+                          {
+                            SoundPlayerLevel[type] = args[1]["level"].as<uint16_t>();
+                            if (type)
+                              value -= 10000;
+                            SoundPlayer(value);
+                          }
+                        }
+                        else if (SoundPlayerLevel[value >= 10000 ? 1 : 0] == 0)
+                        {
+                          SoundPlayer(value);
+                        }
+                      */
+            uint16_t soundName = args[1]["value"].as<uint16_t>();
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放:%d\n", soundName);
+            xQueueSend(queueDFPlayer, &soundName, portMAX_DELAY);
+          }
+          if (args[1].containsKey("name"))
+          {
+            if (args[1].containsKey("level"))
+            {
+              uint8_t level = args[1]["level"].as<uint8_t>();
+              _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "目前等級為:%d\n", SoundPlayerLevel[0]);
+              if (level >= SoundPlayerLevel[0])
+              {
+                SoundPlayerLevel[0] = level;
+                String soundName = args[1]["name"].as<String>();
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "覆蓋播放:%s\n", soundName.c_str());
+                xQueueSend(queuePCM5102, &soundName, portMAX_DELAY);
+              }
+            }
+            else if (SoundPlayerLevel[0] == 0)
+            {
+              String soundName = args[1]["name"].as<String>();
+              _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放:%s,目前內存剩餘:%d\n", soundName.c_str(), ESP.getFreeHeap());
+              xQueueSend(queuePCM5102, &soundName, portMAX_DELAY);
+            }
+          }
+          if (args[1].containsKey("volume"))
+          {
+            uint8_t volume = args[1]["volume"].as<uint8_t>();
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "調整音量:%s\n", volume);
+            audioPCM5102->setVolume(volume);
+          }
+
+          break;
+        case 90 ... 99:
+        {
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , DMX播放%d號\n", id, args[1]["value"].as<uint16_t>());
+          taskFQ512(args[1]["value"].as<uint16_t>());
+          break;
+        }
+        case 30 ... 89:
+          if (args[1].containsKey("value"))
+          {
+            static uint8_t level;
+             level= args[1]["value"].as<uint8_t>();
+            xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID: %d,Level=%d\n", id, args[1]["value"].as<uint8_t>());
+          }
+          break;
+        case 102:
+        {
+
+          if (args[1].containsKey("value"))
+          {
+            static String value;
+            value = args[1].as<String>();
+            xQueueSend(queueJson, &value, portMAX_DELAY);
+          }
         }
         break;
         default:
@@ -220,60 +358,140 @@ void myMQTTsubscribe(PubSubClient *MQTTClient)
 
 void setup()
 {
-
   Serial.begin(115200);
+
+  const uint8_t pinOut[]{25, 26, 27, 33};
+  for (size_t i = 0; i < sizeof(pinOut); i++)
+  {
+    ledcSetup(i, 300000, 8);
+    ledcAttachPin(pinOut[i], i);
+    ledcWrite(i, 0);
+  }
+
   Wire.begin();
   ConfigInit();
-
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
   RTOS();
   _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
-  uint8_t test = 0;
-  /*
-  _DELAY_MS(5000);
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
-  if (Template_JsonPTC != nullptr)
-  {
-    delete Template_JsonPTC;
-    // 設為 nullptr 避免懸空指標
-    Template_JsonPTC = nullptr;
-  }
-*/
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
-
   switch (id)
   {
-  case 1 ... 9:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "投籃機模式~");
-    xTaskCreatePinnedToCore(Basketball,
-                            "Basketball",
-                            2048,
-                            (void *)&test,
+  case 1 ... 4:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機模式~");
+    CoinDispenser(0);
+    break;
+  case 5 ... 6:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機模式~");
+    xTaskCreatePinnedToCore(taskBallDispenser,
+                            "taskBallDispenser",
+                            40960,
+                            NULL,
                             1,
                             NULL,
                             0);
-    taskPCM5102((void *)&test);
+    break;
+  case 7 ... 9:
+    // _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "計時器模式~");
+    // xTaskCreatePinnedToCore(taskTimer,
+    //                         "taskTimer",
+    //                         10240,
+    //                         NULL,
+    //                         1,
+    //                         NULL,
+    //                         0);
+
     break;
   case 10 ... 19:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "飛行船模式~");
-
-    xTaskCreatePinnedToCore(FlyingShip,
-                            "FlyingShip",
-                            2048,
-                            (void *)&test,
-                            1,
-                            NULL,
-                            0);
-    xTaskCreatePinnedToCore(taskWS2812,
-                            "taskWS2812",
-                            2048,
-                            (void *)&test,
-                            1,
-                            NULL,
-                            0);
-
-    taskPCM5102((void *)&test);
     break;
+  case 20 ... 29:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "MP3撥放模式~");
+    // SoundPlayer(0);
+    taskPCM5102((void *)audioPCM5102);
+    break;
+  case 90 ... 99:
+  {
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "FQ512控制模式~");
+    Serial2.begin(115200);
+    /*
+    while (1)
+    {
+      while (Serial.available())
+      {
+        Serial2.write(Serial.read());
+      }
+      while (Serial2.available())
+      {
+        Serial.write(Serial2.read());
+      }
+    }
+    */
+    // const uint8_t pinIn[] = {13, 12, 14, 247, 26, 25, 33, 32, 35, 34, 39, 36};
+    // const uint8_t pinIn[] = {13, 21, 19, 18, 5};
+    const uint8_t pinIn[] = {36, 39, 34, 35, 32};
+    for (uint8_t i = 0; i < sizeof(pinIn); i++)
+      pinMode(pinIn[i], INPUT_PULLUP);
+    while (1)
+    {
+      for (uint8_t i = 0; i < sizeof(pinIn); i++)
+        if (analogRead(pinIn[i]) < 512)
+        {
+          _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "按鈕觸發[%d]\n", i);
+          taskFQ512(i);
+        }
+      _DELAY_MS(100);
+    }
+  }
+  break;
+  case 100:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "訊號延長器模式~");
+    taskSignalExtender(); // 投幣機
+    break;
+  case 101:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "LINE轉發模式~");
+    taskLINE_POST();
+    break;
+  case 102:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "禁地蜘蛛模式~");
+    {
+      bool testpv = 0;
+      taskSpider((void *)testpv);
+    }
+    break;
+  case 30 ... 89:
+  {
+    JsonDocument *doc = new JsonDocument;
+    if (id >= 50 && id <= 59)
+      (*doc)["Length"] = 35;
+    else
+      (*doc)["Length"] = 11;
+    (*doc)["Pin"] = 15;
+    // 是否開機進入測試模式
+    if ((*Template_JsonPTC->getJsonObject()).containsKey("_TESTMODE"))
+      _E2JS(_TESTMODE).as<bool>() ? (*doc)["Level"] = 99 : (*doc)["Level"] = 0;
+    else
+      (*doc)["Level"] = 99;
+    // 是否套用自定義亮度
+    if (!(*Template_JsonPTC->getJsonObject()).containsKey("_LIGHT_0"))
+      (*doc)["_LIGHT_0"] = 0;
+    else
+      (*doc)["_LIGHT_0"] = _E2JS(_LIGHT_0).as<uint16_t>();
+    if (!(*Template_JsonPTC->getJsonObject()).containsKey("_LIGHT_1"))
+      (*doc)["_LIGHT_1"] = 0;
+    else
+      (*doc)["_LIGHT_1"] = _E2JS(_LIGHT_1).as<uint16_t>();
+    if (!(*Template_JsonPTC->getJsonObject()).containsKey("_LIGHT_2"))
+      (*doc)["_LIGHT_2"] = 0;
+    else
+      (*doc)["_LIGHT_2"] = _E2JS(_LIGHT_2).as<uint16_t>();
+    if (!(*Template_JsonPTC->getJsonObject()).containsKey("_LIGHT_3"))
+      (*doc)["_LIGHT_3"] = 0;
+    else
+      (*doc)["_LIGHT_3"] = _E2JS(_LIGHT_3).as<uint16_t>();
+
+    (*doc)["DelayTime"] = 50;
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "武器模式~");
+    taskWeaponLight((void *)doc);
+  }
+  break;
   default:
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
     break;
