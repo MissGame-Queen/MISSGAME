@@ -422,8 +422,9 @@ void FlyingShip(void *pvParam)
             if (!isFailed && !isCorrect)
             {
                 mcp.writeGPIOA((1 << j) + (ifLock ? ONLOCK : OFFLOCK));
-                _DELAY_MS(10);
+                _DELAY_MS(5);
                 uint8_t data = mcp.readGPIOB() ^ 0xFF;
+                _DELAY_MS(5);
                 // 每個port讀取
                 for (uint8_t i = 0; i < 6; i++)
                 { // 如果檢測到磁簧
