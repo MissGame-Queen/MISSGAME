@@ -10,19 +10,9 @@
  * }
  */
 
-void ConfigInit(int mode = 0)
+void ConfigInit()
 {
-  switch (mode)
-  {
-  case 1:
-    SPIFFS.begin(true);
-    SPIFFS.format();
-    break;
-  case 2:
-    SPIFFS.begin(true);
-    SPIFFS.remove("/config.json");
-    break;
-  }
+
   // 先判斷是否為配置模式，並修改樣板參數
 
   Init(24001);
@@ -174,31 +164,11 @@ String myCmdTable_Json(JsonDocument *doc)
     for (JsonVariant item : args[1]["ids"].as<JsonArray>())
     {
       id = item.as<uint16_t>();
-      // FIXME 補上自製模組的運作方法
-      /**
-       @brief id表
-       1~10 籃球機
-       11~20 飛行船
-       */
       static String str = "";
       if (id == _E2JS(_MODULE_ID).as<uint16_t>())
       {
         switch (id)
         {
-        case 1 ... 10:
-        {
-          str = "";
-          serializeJson(args[1], str);
-          xQueueSend(queueBasketball, &str, portMAX_DELAY);
-        }
-        break;
-        case 11 ... 20:
-        {
-          str = "";
-          serializeJson(args[1], str);
-          xQueueSend(queuePCM5102, &str, portMAX_DELAY);
-        }
-        break;
         default:
           _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
           break;
@@ -212,42 +182,40 @@ String myCmdTable_Json(JsonDocument *doc)
     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此事件: %s\n", eventName.c_str());
   return rtStatus;
 }
-void myMQTTsubscribe(PubSubClient *MQTTClient)
-{
-  MQTTClient->subscribe("MissGame");
-  MQTTClient->subscribe(_E2JS(_MODULE_ID).as<String>().c_str());
-}
+
 
 void setup()
 {
-    Serial.begin(115200);
+  Serial.begin(115200);
+  Wire.begin();
   uint8_t testBypass = 0;
 
-  xTaskCreatePinnedToCore(FlyingShip,
-                          "FlyingShip",
+  xTaskCreatePinnedToCore(taskMCP230x7,
+                          "taskMCP230x7",
                           2048,
                           (void *)&testBypass,
                           1,
                           NULL,
                           0);
-  xTaskCreatePinnedToCore(taskWS2812,
-                          "taskWS2812",
-                          2048,
+  xTaskCreatePinnedToCore(task,
+                          "task",
+                          4096,
                           (void *)&testBypass,
                           1,
                           NULL,
                           0);
 
   taskPCM5102((void *)&testBypass);
+  /*
 
+    ConfigInit();
 
-  Wire.begin();
-  ConfigInit();
+    uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
+    RTOS();
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
+    uint8_t test = 0;
 
-  uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
-  RTOS();
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
-  uint8_t test = 0;
+    */
   /*
   _DELAY_MS(5000);
   _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
@@ -258,45 +226,6 @@ void setup()
     Template_JsonPTC = nullptr;
   }
 */
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘內存%d\n", esp_get_free_heap_size());
-
-  switch (id)
-  {
-  case 1 ... 9:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "投籃機模式~");
-    xTaskCreatePinnedToCore(Basketball,
-                            "Basketball",
-                            2048,
-                            (void *)&test,
-                            1,
-                            NULL,
-                            0);
-    taskPCM5102((void *)&test);
-    break;
-  case 10 ... 19:
-    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "飛行船模式~");
-
-    xTaskCreatePinnedToCore(FlyingShip,
-                            "FlyingShip",
-                            2048,
-                            (void *)&test,
-                            1,
-                            NULL,
-                            0);
-    xTaskCreatePinnedToCore(taskWS2812,
-                            "taskWS2812",
-                            2048,
-                            (void *)&test,
-                            1,
-                            NULL,
-                            0);
-
-    taskPCM5102((void *)&test);
-    break;
-  default:
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "id尚未定義! : %d\n", id);
-    break;
-  }
 }
 void loop()
 {

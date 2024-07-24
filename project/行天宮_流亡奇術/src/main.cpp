@@ -213,7 +213,7 @@ void setup()
                           0);
   xTaskCreatePinnedToCore(task,
                           "task",
-                          2048,
+                          4096,
                           (void *)&testBypass,
                           1,
                           NULL,

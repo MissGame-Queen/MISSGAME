@@ -1,0 +1,45 @@
+{
+    "build": {
+        "core": "esp32",
+        "partitions": "src/myPartitionTable.csv",
+        "extra_flags": "-DARDUINO_ESP32_DEV",
+        "f_cpu": "240000000L",
+        "f_flash": "40000000L",
+        "flash_mode": "dio",
+        "flash_size": "4MB",
+        "ldscript": "esp32_out.ld",
+        "mcu": "esp32",
+        "variant": "esp32",
+        "core_annotation": "指定使用的核心。對於 ESP32,一般設置為 esp32。",
+        "partitions_annotation": "指定分區表,可以使用內置的分區表名稱或自定義的分區表。例如,default 使用默認分區表。",
+        "extra_flags_annotation": "添加額外的編譯標誌。例如,-DARDUINO_ESP32_DEV 用於定義開發板類型。",
+        "f_cpu_annotation": "f_cpu: 設置 CPU 頻率,例如 240000000L 表示 240 MHz。",
+        "f_flash_annotation": "f_flash: 設置閃存頻率,例如 40000000L 表示 40 MHz。",
+        "flash_mode_annotation": "flash_mode: 設置閃存模式,例如 dio。",
+        "flash_size_annotation": "flash_size: 設置閃存大小,例如 4MB 表示 4 MB。",
+        "ldscript_annotation": "ldscript: 指定鏈接腳本,例如 esp32_out.ld。",
+        "mcu_annotation": "mcu: 指定微控制器類型,例如 esp32。",
+        "variant_annotation": "variant: 指定變體名稱,例如 esp32。"
+    },
+    "frameworks": [
+        "arduino",
+        "espidf"
+    ],
+    "frameworks_annotation": "指定支持的開發框架，可以是 arduino、espidf 或其他支持的框架列表。",
+    "name": "My Custom ESP32 Board",
+    "name_annotation": "自定義板子的名稱，用於顯示和識別。",
+    "upload": {
+        "maximum_ram_size": 524288,
+        "maximum_size": 4194304,
+        "require_upload_port": true,
+        "speed": 115200,
+        "maximum_ram_size_annotation": "maximum_ram_size: 指定板子的最大 RAM 大小（以字節為單位）。",
+        "maximum_size_annotation": "maximum_size: 指定板子的最大閃存大小（以字節為單位）。",
+        "require_upload_port_annotation": "require_upload_port: 設置是否需要指定上傳端口，通常設置為 true。",
+        "speed_annotation": "speed: 指定上傳速度，例如 115200 表示 115200 bps。"
+    },
+    "url": "https://www.example.com",
+    "url_annotation": " 提供板子的相關網址或文檔鏈接（可選）。",
+    "vendor": "Custom",
+    "vendor_annotation": "指定板子的製造商名稱。"
+}

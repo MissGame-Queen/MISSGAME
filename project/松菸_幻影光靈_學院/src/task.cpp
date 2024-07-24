@@ -11,6 +11,7 @@ QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueWeaponLight = xQueueCreate(1, sizeof(uint8_t));
 QueueHandle_t queueLINE_POST = xQueueCreate(1, sizeof(String));
 
+
 /**
  * @brief 出幣機程式
  *
