@@ -1,3 +1,4 @@
+
 #include "main.h"
 //?=============樣板=============================
 /**
@@ -11,13 +12,13 @@ void ConfigInit()
   //?=================================硬體參數============================================
   _T_E2JS(_VER) = 20240724;
   _T_E2JS(_PIN_SD_CS) = 12;
-  _T_E2JS(_PIN_SET) = 14;
+  _T_E2JS(_PIN_SET) = 2;
   _T_E2JS(_FILE_CONFIG_FS) = "AUTO";
   _T_E2JS(_FILE_DATA_FS) = "AUTO";
   _T_E2JS(_FIRMWAREURL) = "";
 
   _T_E2JS(_STATUSLED)
-  ["Pin"] = 14;
+  ["Pin"] = 2;
   _T_E2JS(_STATUSLED)
   ["Type"] = _Monochrome + _Breathe;
   _T_E2JS(_STATUSLED)
@@ -112,8 +113,8 @@ void ConfigInit()
     }
   }
   //?=================================覆寫樣板參數============================================
-  _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());  
-  _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "資料庫正常運作!佔用RAM大小:[ %d ]\n", Template_JsonPTC->getJsonObject()->memoryUsage());
+  _T_E2JS(_FIRMWAREURL).set(_E2JS(FIRMWAREURL).as<String>());
+  //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "資料庫正常運作!佔用RAM大小:[ %d ]\n", Template_JsonPTC->getJsonObject()->memoryUsage());
 }
 /**
  * @brief 判斷參數執行任務
@@ -129,36 +130,39 @@ void RTOS()
                           1,
                           NULL,
                           0);
-  // MQTT任務
-  if (_E2JS(MQTT_BROKER_URL).as<String>() != "")
-    xTaskCreatePinnedToCore(taskMQTT,
-                            "taskMQTT",
-                            10240,
-                            (void *)Template_JsonPTC->getJsonObject(),
-                            1,
-                            NULL,
-                            0);
-  // SocketIO任務
-  if (_E2JS(SOCKETIO_URL).as<String>() != "")
-    xTaskCreatePinnedToCore(taskSocketIO,
-                            "taskSocketIO",
-                            10240,
-                            (void *)Template_JsonPTC->getJsonObject(),
-                            1,
-                            NULL,
-                            0);
-  // 自動更新固件任務
-  if (_E2JS(FIRMWAREURL).as<String>() != "")
+  if (!(_T_E2JS(_MODE_SET).as<bool>()))
   {
-    JsonDocument pvParam;
-    pvParam["Path"].set("D:/Project/Code/MissGame");
-    xTaskCreatePinnedToCore(taskUpdateFirmware,
-                            "taskUpdateFirmware",
-                            10240,
-                            (void *)&(pvParam),
-                            1,
-                            NULL,
-                            0);
+    // MQTT任務
+    if (_E2JS(MQTT_BROKER_URL).as<String>() != "")
+      xTaskCreatePinnedToCore(taskMQTT,
+                              "taskMQTT",
+                              10240,
+                              (void *)Template_JsonPTC->getJsonObject(),
+                              1,
+                              NULL,
+                              0);
+    // SocketIO任務
+    if (_E2JS(SOCKETIO_URL).as<String>() != "")
+      xTaskCreatePinnedToCore(taskSocketIO,
+                              "taskSocketIO",
+                              10240,
+                              (void *)Template_JsonPTC->getJsonObject(),
+                              1,
+                              NULL,
+                              0);
+    // 自動更新固件任務
+    if (_E2JS(FIRMWAREURL).as<String>() != "")
+    {
+      JsonDocument pvParam;
+      pvParam["Path"].set("D:/Project/Code/MissGame");
+      xTaskCreatePinnedToCore(taskUpdateFirmware,
+                              "taskUpdateFirmware",
+                              10240,
+                              (void *)&(pvParam),
+                              1,
+                              NULL,
+                              0);
+    }
   }
 }
 void Module_CMD(JsonDocument *doc)
@@ -184,6 +188,9 @@ void Module_CMD(JsonDocument *doc)
      80~89 斧
      90~99 DMX512模組
      100 訊號延長器
+     101 LINE轉發
+     102 禁地蜘蛛
+     110~119 IR控制器
      */
     if (id == _E2JS(_MODULE_ID).as<uint16_t>())
     {
@@ -301,6 +308,16 @@ void Module_CMD(JsonDocument *doc)
         }
       }
       break;
+      case 110 ... 119:
+      {
+        if (args[1].containsKey("command") && args[1].containsKey("address"))
+        {
+          static String value;
+          value = args[1].as<String>();
+          xQueueSend(queueJson, &value, portMAX_DELAY);
+        }
+      }
+      break;
       default:
         _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "無定義此ID: %d\n", id);
         break;
@@ -404,6 +421,10 @@ void Module_Setup(uint16_t id)
       taskSpider((void *)testpv);
     }
     break;
+  case 110 ... 119:
+    _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "遙控器模式~");
+    taskIRController();
+    break;
   case 30 ... 89:
   {
     JsonDocument *doc = new JsonDocument;
@@ -413,10 +434,16 @@ void Module_Setup(uint16_t id)
       (*doc)["Length"] = 11;
     (*doc)["Pin"] = 15;
     // 是否開機進入測試模式
-    if ((*Template_JsonPTC->getJsonObject()).containsKey("_TESTMODE"))
-      _E2JS(_TESTMODE).as<bool>() ? (*doc)["Level"] = 99 : (*doc)["Level"] = 0;
+    if (_T_E2JS(_MODE_SET).as<bool>())
+      (*doc)["Level"] = 0;
     else
-      (*doc)["Level"] = 99;
+    {
+      if ((*Template_JsonPTC->getJsonObject()).containsKey("_DEFAULT_MODE"))
+        (*doc)["Level"] = _E2JS(_DEFAULT_MODE).as<uint16_t>();
+
+      else
+        (*doc)["Level"] = 99;
+    }
     // 是否套用自定義亮度
     if (!(*Template_JsonPTC->getJsonObject()).containsKey("_LIGHT_0"))
       (*doc)["_LIGHT_0"] = 0;
@@ -504,8 +531,6 @@ String myCmdTable_Json(JsonDocument *doc)
       args[1]["ids"].add(_E2JS(_MODULE_ID).as<uint16_t>());
     }
 
-    // HACK
-    serializeJsonPretty(*doc, Serial);
     Module_CMD(doc);
   }
   else if (eventName == "Alive")
@@ -518,10 +543,15 @@ String myCmdTable_Json(JsonDocument *doc)
 void setup()
 {
   Serial.begin(115200);
+
+  ESP32_Info();
+
   Module_Setup(0);
   Wire.begin();
   ConfigInit();
+
   RTOS();
+
   uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
   _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID=%d\n", id);
   Module_Setup(id);

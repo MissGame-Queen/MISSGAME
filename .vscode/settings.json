@@ -26,6 +26,8 @@
         "sstream": "cpp",
         "main.h": "c",
         "algorithm": "cpp",
-        "template.h": "c"
+        "template.h": "c",
+        "task.h": "c",
+        "future": "cpp"
     }
 }

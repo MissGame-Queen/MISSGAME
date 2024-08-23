@@ -1,3 +1,14 @@
+
+#include <Arduino.h>
+#define IR_RECEIVE_PIN 34  // D15
+#define IR_SEND_PIN 14     // D4
+#define TONE_PIN 27        // D27 25 & 26 are DAC0 and 1
+#define APPLICATION_PIN 16 // RX2 pin
+// #define LED_BUILTIN 16     // RX2 pin
+#define DECODE_NEC
+#include <IRremote.hpp> // include the library
+//?不知為何要放.cpp最上面
+
 #include "task.h"
 
 uint16_t SoundPlayerLevel[2] = {0, 0};
@@ -10,7 +21,6 @@ QueueHandle_t queueBallTime = xQueueCreate(1, sizeof(uint16_t));
 QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueWeaponLight = xQueueCreate(1, sizeof(uint8_t));
 QueueHandle_t queueLINE_POST = xQueueCreate(1, sizeof(String));
-
 
 /**
  * @brief 出幣機程式
@@ -392,12 +402,15 @@ void taskWeaponLight(void *pvParam)
 
     JsonDocument *doc = (JsonDocument *)pvParam;
     const uint8_t pinOut[]{25, 26, 27, 33};
+    const uint8_t pinCHG = 5;
+    const uint8_t pinBattery = 32;
     for (size_t i = 0; i < sizeof(pinOut); i++)
     {
-        ledcSetup(i, 100, 12);
+        ledcSetup(i, 1000, 12);
         ledcAttachPin(pinOut[i], i);
         ledcWrite(i, 0);
     }
+    pinMode(pinCHG, INPUT_PULLUP);
     Adafruit_NeoPixel strip((*doc).containsKey("Length") ? (*doc)["Length"] : 11,
                             (*doc).containsKey("Pin") ? (*doc)["Pin"] : 15,
                             NEO_GRB + NEO_KHZ800);
@@ -409,11 +422,67 @@ void taskWeaponLight(void *pvParam)
     uint8_t num = 0;
     uint32_t batterTimer = 0;
     uint8_t level = 0;
+    uint16_t limitPWM[] = {25, 25, 25, 0};
+
+    bool isAutoPam = true;
+    if (
+        (*doc).containsKey("_LIGHT_0") &&
+        (*doc).containsKey("_LIGHT_1") &&
+        (*doc).containsKey("_LIGHT_2") &&
+        (*doc).containsKey("_LIGHT_3"))
+    {
+        if ((*doc)["_LIGHT_0"].as<uint16_t>() != 0 ||
+            (*doc)["_LIGHT_1"].as<uint16_t>() != 0 ||
+            (*doc)["_LIGHT_2"].as<uint16_t>() != 0 ||
+            (*doc)["_LIGHT_3"].as<uint16_t>() != 0)
+        {
+            isAutoPam = false;
+        }
+    }
+    if (isAutoPam)
+    {
+        switch (id)
+        {
+        case 40 ... 49:
+            limitPWM[0] = 250;
+            limitPWM[1] = 250;
+            limitPWM[2] = 250;
+            break;
+        case 50 ... 59:
+            limitPWM[0] = 250;
+            limitPWM[1] = 4000;
+            break;
+        case 60 ... 69:
+            limitPWM[0] = 125;
+            limitPWM[1] = 125;
+            limitPWM[2] = 125;
+            break;
+        case 70 ... 79:
+            limitPWM[0] = 125;
+            limitPWM[1] = 125;
+            limitPWM[2] = 125;
+            break;
+        case 80 ... 89:
+            limitPWM[0] = 80;
+            limitPWM[1] = 80;
+            limitPWM[2] = 70;
+            break;
+        }
+    }
+    else
+    {
+        limitPWM[0] = (*doc)["_LIGHT_0"].as<uint16_t>();
+        limitPWM[1] = (*doc)["_LIGHT_1"].as<uint16_t>();
+        limitPWM[2] = (*doc)["_LIGHT_2"].as<uint16_t>();
+        limitPWM[3] = (*doc)["_LIGHT_3"].as<uint16_t>();
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO,"%d,%d,%d,%d\n",limitPWM[0],limitPWM[1],limitPWM[2],limitPWM[3]);
+    }
     while (1)
     {
         if (xQueueReceive(queueWeaponLight, &level, 0) == pdPASS)
         {
             (*doc)["Level"].set(level);
+            //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "等級為%d\n", (*doc)["Level"].as<uint8_t>());
         }
 
         /*
@@ -425,51 +494,6 @@ void taskWeaponLight(void *pvParam)
  80~89 斧
  */
 
-        uint16_t limitPWM[] = {25, 25, 25, 0};
-        bool isAutoPam = true;
-        if (
-            (*doc).containsKey("_LIGHT_0") &&
-            (*doc).containsKey("_LIGHT_1") &&
-            (*doc).containsKey("_LIGHT_2") &&
-            (*doc).containsKey("_LIGHT_3"))
-        {
-            if ((*doc)[_LIGHT_0].as<uint16_t>() != 0 ||
-                (*doc)[_LIGHT_1].as<uint16_t>() != 0 ||
-                (*doc)[_LIGHT_2].as<uint16_t>() != 0 ||
-                (*doc)[_LIGHT_3].as<uint16_t>() != 0)
-                isAutoPam = false;
-        }
-        if (isAutoPam)
-        {
-            switch (id)
-            {
-            case 40 ... 49:
-                limitPWM[0] = 25;
-                limitPWM[1] = 25;
-                limitPWM[2] = 25;
-                break;
-            case 50 ... 59:
-                limitPWM[0] = 25;
-                limitPWM[1] = 180; // 1500
-                break;
-            case 60 ... 69:
-                limitPWM[0] = 125;
-                limitPWM[1] = 125;
-                limitPWM[2] = 125;
-                break;
-            case 70 ... 79:
-                limitPWM[0] = 125;
-                limitPWM[1] = 125;
-                limitPWM[2] = 125;
-                break;
-            case 80 ... 89:
-                limitPWM[0] = 80;
-                limitPWM[1] = 80;
-                limitPWM[2] = 70;
-                break;
-            }
-        }
-        //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "等級為%d\n", (*doc)["Level"].as<uint8_t>());
         switch ((*doc)["Level"].as<uint8_t>())
         {
         case 1:
@@ -539,6 +563,45 @@ void taskWeaponLight(void *pvParam)
                 ledcWrite(i, limitPWM[i]);
         }
         break;
+            // 充電動畫
+        case 97:
+        {
+            float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
+            int roundedNumber = round(number * 100);                    // 将浮点数乘以100后四舍五入为整数
+            float valBattery = roundedNumber / 100.0;                   // 将四舍五入后的整数除以100得到保留两位小数的浮点数
+            uint32_t timer = millis();
+            if (valBattery < 3)
+            {
+                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
+                ledcWrite(1, 0);
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+            }
+            else if (valBattery > 3 && valBattery < 3.7)
+            {
+                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
+                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
+                ledcWrite(2, 0);
+                ledcWrite(3, 0);
+            }
+            else
+            {
+                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
+                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
+                ledcWrite(2, map(timer % 1000, 0, 1000, 0, limitPWM[2]));
+                ledcWrite(3, 0);
+            }
+
+            uint8_t maxled = map(valBattery * 100, 300, 420, 1, strip.numPixels());
+            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            {
+                color = setRainbowRGB(map(valBattery * 100, 300, 420, 0, 1536));
+                color = setBrightnessRGB(color, maxled >= i ? map(timer % 1000, 0, 1000, 0, 125) : 0);
+                strip.setPixelColor(i, color);
+            }
+        }
+        break;
+        // 亮度測試
         case 98:
             ledcWrite(0, limitPWM[0]);
             ledcWrite(1, limitPWM[1]);
@@ -551,6 +614,7 @@ void taskWeaponLight(void *pvParam)
                 strip.setPixelColor(i, color);
             }
             break;
+            // 預設開機動畫
         case 99:
         {
             switch (num)
@@ -624,14 +688,15 @@ void taskWeaponLight(void *pvParam)
          * @brief 每10秒送目前電池電壓值
          *
          */
-        // _E2JS(_BATTERY_VAL) = roundf(analogRead(32) * 0.0017465437788018 * 100) / 100;
+        // _E2JS(_BATTERY_VAL) = roundf(analogRead(pinBattery) * 0.0017465437788018 * 100) / 100;
         if (millis() > batterTimer + 10000)
         {
-            if (socketIO.isConnected())
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "讀取電池電量!\n");
+            if (socketIO_Client.isConnected())
             {
-                float number = analogRead(32) * 0.0017465437788018; // 假设这是你的浮点数值
-                int roundedNumber = round(number * 100);            // 将浮点数乘以100后四舍五入为整数
-                _E2JS(_BATTERY_VAL) = roundedNumber / 100.0;        // 将四舍五入后的整数除以100得到保留两位小数的浮点数
+                float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
+                int roundedNumber = round(number * 100);                    // 将浮点数乘以100后四舍五入为整数
+                _E2JS(_BATTERY_VAL) = roundedNumber / 100.0;                // 将四舍五入后的整数除以100得到保留两位小数的浮点数
                 const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
                 JsonDocument doc;
                 JsonArray array = doc.to<JsonArray>();
@@ -644,9 +709,25 @@ void taskWeaponLight(void *pvParam)
                 String output;
                 serializeJson(doc, output);
                 // serializeJsonPretty(doc, Serial);
-                socketIO.sendEVENT(output);
+                socketIO_Client.sendEVENT(output);
             }
+
             batterTimer = millis();
+        }
+        if (level != 97)
+        {
+            if (!digitalRead(pinCHG))
+            {
+                const uint8_t level = 97;
+                xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "充電模式!\n");
+            }
+        }
+        else if (digitalRead(pinCHG))
+        {
+            const uint8_t level = 0;
+            xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "結束充電模式!關閉LED\n");
         }
     }
 }
@@ -765,6 +846,60 @@ void taskSignalExtender()
         _DELAY_MS(1);
     }
 }
+
+void taskIRController()
+{
+    const uint8_t pinReceiver = 34;
+    IrSender.begin();     // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
+    disableLEDFeedback(); // Disable feedback LED at default feedback LED pin
+    // IrSender.sendNEC(0x00, 1, 1);
+    IrReceiver.begin(pinReceiver, ENABLE_LED_FEEDBACK);
+    printActiveIRProtocols(&Serial);
+    String StrJson = "";
+    JsonDocument doc;
+    while (1)
+    {
+        // 如果收到隊列
+        if (xQueueReceive(queueJson, &StrJson, 0) == pdPASS)
+        {
+            // 反序列化隊列資料
+            DeserializationError error = deserializeJson(doc, StrJson);
+            if (error)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
+                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
+            }
+            else
+            {
+                if (doc.containsKey("command") && doc.containsKey("address"))
+                    IrSender.sendNEC(doc["address"].as<uint16_t>(), doc["command"].as<uint16_t>(), 1);
+            }
+        }
+
+        if (IrReceiver.decode())
+        {
+
+            if (IrReceiver.decodedIRData.protocol == UNKNOWN)
+            {
+                Serial.println(F("Received noise or an unknown (or not yet enabled) protocol"));
+                // We have an unknown protocol here, print extended info
+                IrReceiver.printIRResultRawFormatted(&Serial, true);
+                IrReceiver.resume(); // Do it here, to preserve raw data for printing with printIRResultRawFormatted()
+            }
+            else
+            {
+                IrReceiver.resume(); // Early enable receiving of the next IR frame
+                IrReceiver.printIRResultShort(&Serial);
+                IrReceiver.printIRSendUsage(&Serial);
+                IrSender.sendNEC(IrReceiver.decodedIRData.address, IrReceiver.decodedIRData.command, 1);
+            }
+            Serial.println();
+        }
+
+        _DELAY_MS(50);
+    }
+}
+
 /**
  * @brief
  *

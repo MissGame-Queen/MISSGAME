@@ -1,0 +1,48 @@
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0018,len:4
+load:0x3fff001c,len:5564
+load:0x40078000,len:0
+load:0x40078000,len:13756
+entry 0x40078fb4
+I (29) boot: ESP-IDF v3.0.1 2nd stage bootloader
+I (29) boot: compile time 05:35:52
+I (29) boot: Enabling RNG early entropy source...
+I (34) boot: SPI Speed      : 40MHz
+I (38) boot: SPI Mode       : DIO
+I (42) boot: SPI Flash Size : 4MB
+I (46) boot: Partition Table:
+I (49) boot: ## Label            Usage          Type ST Offset   Length
+I (57) boot:  0 phy_init         RF data          01 01 0000f000 00001000
+I (64) boot:  1 otadata          OTA data         01 00 00010000 00002000
+I (72) boot:  2 nvs              WiFi data        01 02 00012000 0000e000
+I (79) boot:  3 at_customize     unknown          40 00 00020000 000e0000
+I (87) boot:  4 ota_0            OTA app          00 10 00100000 00180000
+I (94) boot:  5 ota_1            OTA app          00 11 00280000 00180000
+I (102) boot: End of partition table
+E (106) boot: ota data partition invalid and no factory, will try all partitions
+I (114) esp_image: segment 0: paddr=0x00100020 vaddr=0x3f400020 size=0x1fdfc (130556) map
+I (169) esp_image: segment 1: paddr=0x0011fe24 vaddr=0x3ffc0000 size=0x001ec (   492) load
+I (169) esp_image: segment 2: paddr=0x00120018 vaddr=0x400d0018 size=0xddc74 (908404) map
+I (493) esp_image: segment 3: paddr=0x001fdc94 vaddr=0x3ffc01ec size=0x0300c ( 12300) load
+I (498) esp_image: segment 4: paddr=0x00200ca8 vaddr=0x40080000 size=0x00400 (  1024) load
+I (500) esp_image: segment 5: paddr=0x002010b0 vaddr=0x40080400 size=0x0eba0 ( 60320) load
+I (534) esp_image: segment 6: paddr=0x0020fc58 vaddr=0x400c0000 size=0x00064 (   100) load
+I (543) boot: Loaded app from partition at offset 0x100000
+I (543) boot: Disabling RNG early entropy source...
+Bin version(Wrover32):1.1.1
+I (581) wifi: wifi firmware version: bffcf7f
+I (581) wifi: config NVS flash: enabled
+I (581) wifi: config nano formating: disabled
+I (591) wifi: Init dynamic tx buffer num: 32
+I (591) wifi: Init data frame dynamic rx buffer num: 32
+I (592) wifi: Init management frame dynamic rx buffer num: 32
+I (597) wifi: wifi driver task: 3ffdf604, prio:23, stack:4096
+I (602) wifi: Init static rx buffer num: 10
+I (606) wifi: Init dynamic rx buffer num: 32
+I (610) wifi: wifi power manager task: 0x3ffe3ce4 prio: 21 stack: 2560
+I (643) wifi: mode : sta (10:06:1c:4a:06:24)
+I (646) wifi: mode : sta (10:06:1c:4a:06:24) + softAP (10:06:1c:4a:06:25)
+I (654) wifi: mode : sta (10:06:1c:4a:06:24)

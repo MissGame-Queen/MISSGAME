@@ -1,10 +1,12 @@
 #ifndef TASK_H
 #define TASK_H
+
+
+
 #include "main.h"
 #include <ESP32Servo.h>
 #include <DFRobotDFPlayerMini.h>
 #include <Audio.h>
-#include <SPIFFS.h>   //內建的空間儲存庫
 extern uint16_t SoundPlayerLevel[2];
 extern String SoundPlayerName[2];
 extern Audio *audioPCM5102;
@@ -34,6 +36,7 @@ void taskLINE_POST();
 void taskSignalExtender();
 void taskSpider(void *pvParam);
 void taskFQ512(uint16_t cmd);
+void taskIRController();
 uint16_t CRC_16(byte *data, uint16_t len, CRC16_parameter_t *CRC16_parameter);
 
 

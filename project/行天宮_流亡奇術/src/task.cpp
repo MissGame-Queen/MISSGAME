@@ -7,78 +7,6 @@ SemaphoreHandle_t xMutex = xSemaphoreCreateMutex();
 String strAudio = "";
 void task(void *pvParam)
 {
-    enum mcpInputRegister_e
-    {
-        mpcI_0_0 = 0x1,
-        mpcI_0_1 = 0x2,
-        mpcI_0_2 = 0x4,
-        mpcI_0_3 = 0x8,
-        mpcI_0_4 = 0x10,
-        mpcI_0_5 = 0x20,
-        mpcI_0_6 = 0x40,
-        mpcI_0_7 = 0x80,
-        mpcI_1_0 = 0x100,
-        mpcI_1_1 = 0x200,
-        mpcI_1_2 = 0x400,
-        mpcI_1_3 = 0x800,
-        mpcI_1_4 = 0x1000,
-        mpcI_1_5 = 0x2000,
-        mpcI_1_6 = 0x4000,
-        mpcI_1_7 = 0x8000,
-        mpcI_2_0 = 0x10000,
-        mpcI_2_1 = 0x20000,
-        mpcI_2_2 = 0x40000,
-        mpcI_2_3 = 0x80000,
-        mpcI_2_4 = 0x100000,
-        mpcI_2_5 = 0x200000,
-        mpcI_2_6 = 0x400000,
-        mpcI_2_7 = 0x800000,
-        mpcI_3_0 = 0x1000000,
-        mpcI_3_1 = 0x2000000,
-        mpcI_3_2 = 0x4000000,
-        mpcI_3_3 = 0x8000000,
-        mpcI_3_4 = 0x10000000,
-        mpcI_3_5 = 0x20000000,
-        mpcI_3_6 = 0x40000000,
-        mpcI_3_7 = 0x80000000,
-    };
-    enum mcpOutputRegister_e
-    {
-        mpcO_0_0 = 0x1,
-        mpcO_0_1 = 0x2,
-        mpcO_0_2 = 0x4,
-        mpcO_0_3 = 0x8,
-        mpcO_0_4 = 0x10,
-        mpcO_0_5 = 0x20,
-        mpcO_0_6 = 0x40,
-        mpcO_0_7 = 0x80,
-        mpcO_1_0 = 0x100,
-        mpcO_1_1 = 0x200,
-        mpcO_1_2 = 0x400,
-        mpcO_1_3 = 0x800,
-        mpcO_1_4 = 0x1000,
-        mpcO_1_5 = 0x2000,
-        mpcO_1_6 = 0x4000,
-        mpcO_1_7 = 0x8000,
-        mpcO_2_0 = 0x10000,
-        mpcO_2_1 = 0x20000,
-        mpcO_2_2 = 0x40000,
-        mpcO_2_3 = 0x80000,
-        mpcO_2_4 = 0x100000,
-        mpcO_2_5 = 0x200000,
-        mpcO_2_6 = 0x400000,
-        mpcO_2_7 = 0x800000,
-        mpcO_3_0 = 0x1000000,
-        mpcO_3_1 = 0x2000000,
-        mpcO_3_2 = 0x4000000,
-        mpcO_3_3 = 0x8000000,
-        mpcO_3_4 = 0x10000000,
-        mpcO_3_5 = 0x20000000,
-        mpcO_3_6 = 0x40000000,
-        mpcO_3_7 = 0x80000000,
-    };
-    const uint8_t pinOutput[] = {15, 14, 12, 13};
-    const uint8_t pinInput[] = {36, 39, 34, 35};
     const uint8_t mcpAddress[] = {0x27, 0x26, 0x25, 0x24};
     const uint32_t pinInputMPC[12] = {mpcI_0_4, mpcI_0_7, mpcI_1_5, mpcI_1_4, mpcI_1_6, mpcI_0_3,
                                       mpcI_0_2, mpcI_0_1, mpcI_1_1, mpcI_1_3, mpcI_1_2, mpcI_0_6};
@@ -100,14 +28,36 @@ void task(void *pvParam)
     bool isONStoneR = false;
     bool isONStoneL = false;
     bool isONStoneWater = false;
-    const uint32_t ansGame1[4][4] = {{0x2000, 0, 0, 0}, {0x1000, 0x8, 0, 0}, {0x4, 0x1000, 0x400, 0}, {0x200, 0x40, 0x4000, 0x80}};
-    const uint32_t ansGame2[2][12] = {{mpcI_0_3, mpcI_0_1, mpcI_1_1, mpcI_0_2, mpcI_1_6, mpcI_0_6, mpcI_0_4, mpcI_0_7, mpcI_1_2, mpcI_1_5, mpcI_1_3, mpcI_1_4},
-                                      {mpcI_0_3, mpcI_0_1, mpcI_1_1, mpcI_1_6, mpcI_0_2, mpcI_0_6, mpcI_0_4, mpcI_0_7, mpcI_1_2, mpcI_1_5, mpcI_1_3, mpcI_1_4}};
-
+    const uint32_t ansGame1[4][4] = {
+        {mpcI_1_5, 0, 0, 0},
+        {mpcI_1_4, mpcI_0_3, 0, 0},
+        {mpcI_0_2, mpcI_1_4, mpcI_1_2, 0},
+        {mpcI_1_1, mpcI_0_6, mpcI_1_6, mpcI_0_7}};
+    // 僅讀取12格輸入，避免遙控器輸入導致判讀錯誤
+    uint32_t ansGame1_allbit = 0;
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        for (uint8_t j = 0; j < 4; j++)
+        {
+            ansGame1_allbit = ansGame1_allbit | ansGame1[i][j];
+        }
+    }
+    const uint32_t ansGame2[2][12] = {{mpcI_0_3, mpcI_0_1, mpcI_1_1, mpcI_0_2, mpcI_1_6, mpcI_0_6,
+                                       mpcI_0_4, mpcI_0_7, mpcI_1_2, mpcI_1_5, mpcI_1_3, mpcI_1_4},
+                                      {mpcI_0_3, mpcI_0_1, mpcI_1_1, mpcI_1_6, mpcI_0_2, mpcI_0_6,
+                                       mpcI_0_4, mpcI_0_7, mpcI_1_2, mpcI_1_5, mpcI_1_3, mpcI_1_4}};
+    uint32_t ansGame2_allbit = 0;
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        for (uint8_t j = 0; j < 12; j++)
+        {
+            ansGame2_allbit = ansGame2_allbit | ansGame2[i][j];
+        }
+    }
     uint8_t stepGame = 0;
     bool first = true;
     uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
-    uint8_t dataInput_8t = 0, dataInputLast_8t = 0, dataOutput_8t = 0, dataOutputLast_8t = 0xFF;
+    uint8_t dataInput_8t = 0, dataInputLast_8t = 0;
     for (uint8_t i = 0; i < 4; i++)
     {
         if (i != 0)
@@ -119,20 +69,6 @@ void task(void *pvParam)
     }
     Adafruit_NeoPixel strip(12, pinOutput[0], NEO_GRB + NEO_KHZ800);
 
-    /*
-    RST
-    關門
-    12個燈滅
-    中間背景燈恆亮
-    中間狀態燈滅
-    play
-    根據踩的狀態點亮12燈
-    踩到正確的中間狀態燈要亮,正確音效
-    end
-    開門音效
-    開門
-    時間到RST
-    */
     while (1)
     {
         if (xQueueReceive(queueMCP230x7_Input, &dataInput_32t, 0) == pdPASS)
@@ -165,13 +101,6 @@ void task(void *pvParam)
 
             dataInputLast_8t = dataInput_8t;
         }
-        if (dataOutputLast_8t != dataOutput_8t)
-        {
-            for (uint8_t i = 1; i < 4; i++)
-                digitalWrite(pinOutput[i], dataOutput_8t & (1 << i) ? 1 : 0);
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "輸出:%02x!\n", dataOutput_8t);
-            dataOutputLast_8t = dataOutput_8t;
-        }
 
         bool isCorrect = false;
         //[v]流亡
@@ -179,11 +108,14 @@ void task(void *pvParam)
         {
             for (uint8_t i = 0; i < sizeof(pinInputMPC) / sizeof(pinInputMPC[0]); i++)
             {
-                if (pinInputMPC[i] & dataInput_32t)
+                if (dataInput_32t & pinInputMPC[i])
                     strip.setPixelColor(i, 125, 125, 125);
                 else
                     strip.setPixelColor(i, 0);
             }
+            // 避免作弊一次採全部，只能採正確答案，一旦多採判定錯誤
+            uint32_t valAns = (dataInput_32t & ansGame1_allbit);
+            //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%08X,%08X,\n",ansGame1_allbit, valAns);
             switch (stepGame)
             {
             case 0:
@@ -200,42 +132,53 @@ void task(void *pvParam)
             }
             break;
             case 1:
-                if (dataInput_32t == ansGame1[stepGame - 1][0])
+            {
+
+                if (valAns == ansGame1[stepGame - 1][0])
                 {
                     stepGame++;
                     isCorrect = true;
                     dataOutput_32t = dataOutput_32t | pinOutputMPC[0];
                 }
-                break;
+            }
+            break;
             case 2:
-                if ((dataInput_32t & ansGame1[stepGame - 1][0]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][1]))
+            {
+                if (valAns ==
+
+                    (ansGame1[stepGame - 1][0] |
+                     ansGame1[stepGame - 1][1]))
                 {
                     stepGame++;
                     dataOutput_32t = dataOutput_32t | pinOutputMPC[1];
                     isCorrect = true;
                 }
-                break;
+            }
+            break;
             case 3:
-                if ((dataInput_32t & ansGame1[stepGame - 1][0]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][1]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][2]))
+            {
+                if (valAns == (ansGame1[stepGame - 1][0] |
+                               ansGame1[stepGame - 1][1] |
+                               ansGame1[stepGame - 1][2]))
                 {
                     stepGame++;
                     dataOutput_32t = dataOutput_32t | pinOutputMPC[2];
                     isCorrect = true;
                 }
-                break;
+            }
+            break;
             case 4:
-                if ((dataInput_32t & ansGame1[stepGame - 1][0]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][1]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][2]) &&
-                    (dataInput_32t & ansGame1[stepGame - 1][3]))
+            {
+                if (valAns == (ansGame1[stepGame - 1][0] |
+                               ansGame1[stepGame - 1][1] |
+                               ansGame1[stepGame - 1][2] |
+                               ansGame1[stepGame - 1][3]))
                 {
                     stepGame++;
                     dataOutput_32t = dataOutput_32t | pinOutputMPC[3];
                 }
-                break;
+            }
+            break;
             case 5:
             {
                 static uint32_t timer = millis();
@@ -274,8 +217,8 @@ void task(void *pvParam)
                 }
             }
         }
-        //[ ]奇術
-        else if (!(dataInput_8t & 1))
+        //[v]奇術
+        else
         {
             static uint8_t ansGame2Index = 0;
             static uint32_t ansGame2Value = 0;
@@ -304,8 +247,12 @@ void task(void *pvParam)
             }
             break;
             case 1:
-                if ((dataInput_32t == ansGame2[0][ansGame2Index] && !(ansGame2Value & ansGame2[0][ansGame2Index])) ||
-                    (dataInput_32t == ansGame2[1][ansGame2Index] && !(ansGame2Value & ansGame2[1][ansGame2Index])))
+            {
+                // 避免作弊一次採全部，只能採正確答案，一旦多採判定錯誤
+                uint32_t valAns = (dataInput_32t & ansGame2_allbit);
+
+                if ((valAns == ansGame2[0][ansGame2Index] && !(ansGame2Value & ansGame2[0][ansGame2Index])) ||
+                    (valAns == ansGame2[1][ansGame2Index] && !(ansGame2Value & ansGame2[1][ansGame2Index])))
                 {
                     ansGame2Value = ansGame2Value | dataInput_32t;
                     for (uint8_t i = 0; i < sizeof(pinInputMPC) / sizeof(pinInputMPC[0]); i++)
@@ -319,8 +266,10 @@ void task(void *pvParam)
                 if (ansGame2Index == sizeof(ansGame2[0]) / sizeof(ansGame2[0][0]))
                 {
                     stepGame++;
+                    first = true;
                 }
-                break;
+            }
+            break;
             case 2:
             {
                 static uint32_t timer = 0;
@@ -336,8 +285,10 @@ void task(void *pvParam)
                 {
                     stepGame++;
                     first = true;
+                    //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "stepGame++!%d,%d\n", stepGame,first);
                 }
             }
+            break;
             case 3:
             {
                 static uint32_t timer = 0;
@@ -376,6 +327,7 @@ void task(void *pvParam)
                 }
             }
             // 如果左右石像同時有東西
+
             if (dataInput_32t & pinInputMPC_StoneR && dataInput_32t & pinInputMPC_StoneL && valStone < 100)
             {
                 isONStoneWater = true;
