@@ -1,5 +1,6 @@
 
 #include "main.h"
+#include <SPI.h>
 //?=============樣板=============================
 /**
  * @brief 初始化並讀取設定檔
@@ -69,7 +70,6 @@ void ConfigInit()
   }
   JsonObject obj = _T_E2JS(_STATUSLED);
   xQueueSend(queueStatusLED, &obj, portMAX_DELAY);
-
   Template_JsonPTC = new JsonPTC();
 
   if (Template_JsonPTC->Begin(getFS()) < 0)
@@ -93,7 +93,7 @@ void ConfigInit()
       _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "生成設定檔成功!資料庫初始化中...");
     if (Template_JsonPTC->Begin(getFS()) < 0)
     {
-      _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "設生成設定檔失敗!");
+      _CONSOLE_PRINTLN(_PRINT_LEVEL_ERROR, "資料庫初始化錯誤!");
       isOK = false;
     }
     if (!isOK)
@@ -130,6 +130,7 @@ void RTOS()
                           1,
                           NULL,
                           0);
+
   if (!(_T_E2JS(_MODE_SET).as<bool>()))
   {
     // MQTT任務
@@ -543,7 +544,6 @@ String myCmdTable_Json(JsonDocument *doc)
 void setup()
 {
   Serial.begin(115200);
-
   ESP32_Info();
 
   Module_Setup(0);
@@ -559,3 +559,9 @@ void setup()
 void loop()
 {
 }
+
+
+
+
+
+

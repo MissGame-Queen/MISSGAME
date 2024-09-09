@@ -13,13 +13,18 @@ void task(void *pvParam)
     bool first = true;
     uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
     uint8_t dataInput_8t = 0, dataInputLast_8t = 0;
-    const uint32_t pinMCP_Input_ScanButton = (1 << 0);         // 掃描按鈕
-    const uint32_t pinMCP_Output_FinalDoor = (1 << 0);         // 最終大門
-    const uint32_t pinMCP_Output_Projector = (1 << 1);         // 投影機
-    const uint32_t pinMCP_Output_VentilationDuct = (1 << 2);   // 通風管線索電磁鐵
-    const uint32_t pinMCP_Input_Remote_AntidoteMachine = 0x10; // 解藥機遙控器
-    const uint32_t pinMCP_Input_Remote_AirDisinfection = 0x40; // 空氣消毒遙控器
-    const uint32_t pinMCP_Input_Remote_Projector = 0x80;       // 投影機遙控器
+    const uint32_t pinMCP_Output_FinalDoor = (1 << 0);             // 最終大門
+    const uint32_t pinMCP_Output_Projector = (1 << 1);             // 投影機
+    const uint32_t pinMCP_Output_VentilationDuct = (1 << 5);       // 通風管電磁鐵
+    const uint32_t pinMCP_Output_Door = (1 << 6);                  // 氣動門電磁閥
+    const uint32_t pinMCP_Output_AirDisinfection = (1 << 7);       // 空氣消毒完成訊號
+    const uint32_t pinMCP_Input_ScanButton = (1 << 0);             // 掃描按鈕
+    const uint32_t pinMCP_Input_AirDisinfection = (1 << 1);        // 空氣消毒完成訊號
+    const uint32_t pinMCP_Input_Remote_AntidoteMachine = (1 << 4); // 解藥機完成遙控器
+    const uint32_t pinMCP_Input_Remote_Door = (1 << 5);            // 氣動門遙控器
+    const uint32_t pinMCP_Input_Remote_AirDisinfection = (1 << 6); // 空氣消毒完成訊號
+    const uint32_t pinMCP_Input_Remote_Projector = (1 << 7);       // 投影機遙控器
+
     bool havelock_Projector = false;
     while (1)
     {
@@ -33,6 +38,7 @@ void task(void *pvParam)
         {
             xQueueSend(queueMCP230x7_Output, &dataOutput_32t, portMAX_DELAY);
             dataOutputLast_32t = dataOutput_32t;
+            //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "dataOutput_32t=0x%08X\n", dataOutput_32t);
         }
         dataInput_8t = 0;
         for (uint8_t i = 0; i < 4; i++)
@@ -88,14 +94,14 @@ void task(void *pvParam)
                 timer = 0;
                 havelock_Projector = true;
             }
-            if (if3timeplay < 3 && millis() > 4000 && millis() - 4000 > timer)
+            if (if3timeplay < 3 && millis() > 4000 && (millis() - 4000) > timer)
             {
                 strAudio = "{\"name\": \"/mp3/1-1.wav\"}";
                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
                 timer = millis();
                 if3timeplay++;
             }
-            else if (if3timeplay == 3 && millis() > 4000 && millis() - 4000 > timer)
+            else if (if3timeplay == 3 && millis() > 4000 && (millis() - 4000) > timer)
             {
                 stepGame++;
                 first = true;
@@ -114,7 +120,7 @@ void task(void *pvParam)
                 strAudio = "{\"name\": \"/mp3/1-2.wav\"}";
                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
             }
-            if (millis() > 7000 && millis() - 7000 > timer)
+            if ((millis() > 7000) && (millis() - 7000) > timer)
             {
                 stepGame++;
                 first = true;
@@ -123,15 +129,15 @@ void task(void *pvParam)
         break;
         case _AirDisinfection:
         {
-            static uint8_t swRemote = 0;
+            static uint8_t swRemote;
             if (first)
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
-                swRemote = dataInput_32t & pinMCP_Input_Remote_AirDisinfection;
+                swRemote = dataInput_32t & pinMCP_Input_AirDisinfection;
             }
-            // 如果狀態被改變判定按壓遙控器
-            if (swRemote != (dataInput_32t & pinMCP_Input_Remote_AirDisinfection))
+            // 如果收到訊號或者按壓遙控器
+            if (swRemote != (dataInput_32t & pinMCP_Input_AirDisinfection))
             {
                 stepGame++;
                 first = true;
@@ -159,6 +165,7 @@ void task(void *pvParam)
         }
         break;
         case _PlaySound_3:
+        {
             static uint8_t playType = 0;
             static uint32_t timer = 0;
             if (first)
@@ -166,24 +173,44 @@ void task(void *pvParam)
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
                 playType = 0;
+                timer = 0;
+                havelock_Projector = true;
+            }
+            if (playType < 2 && millis() > 4000 && (millis() - 4000) > timer)
+            {
                 strAudio = "{\"name\": \"/mp3/1-1.wav\"}";
                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
                 timer = millis();
-                havelock_Projector = true;
+                playType++;
             }
-            if (playType < 2 && millis() > 4000 && millis() - 4000 > timer)
+            else if (playType == 2 && millis() > 4000 && (millis() - 4000) > timer)
+            {
+                strAudio = "{\"name\": \"/mp3/1-2.wav\"}";
+                xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                timer = millis();
+                playType++;
+            }
+            else if (playType == 3 && millis() > 8000 && (millis() - 8000) > timer)
             {
                 strAudio = "{\"name\": \"/mp3/1-3.wav\"}";
                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
                 timer = millis();
                 playType++;
             }
-            else if (playType == 2 && millis() > 5000 && millis() - 5000 > timer)
+            else if (playType == 4 && millis() > 5000 && (millis() - 5000) > timer)
+            {
+                strAudio = "{\"name\": \"/mp3/1-3.wav\"}";
+                xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                timer = millis();
+                playType++;
+            }
+            else if (playType == 5 && millis() > 5000 && (millis() - 5000) > timer)
             {
                 stepGame++;
                 first = true;
             }
-            break;
+        }
+        break;
         case _AntidoteMachine:
         {
             static uint8_t swRemote = 0;
@@ -238,14 +265,14 @@ void task(void *pvParam)
                 timer = millis();
                 havelock_Projector = true;
             }
-            if (playType <2 && millis() > 4000 && millis() - 4000 > timer)
+            if (playType < 2 && millis() > 5000 && (millis() - 5000) > timer)
             {
                 strAudio = "{\"name\": \"/mp3/1-4.wav\"}";
                 xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
                 timer = millis();
                 playType++;
             }
-            else if (playType == 2 && millis() > 5000 && millis() - 5000 > timer)
+            else if (playType == 2 && millis() > 5000 && (millis() - 5000) > timer)
             {
                 stepGame++;
                 first = true;
@@ -263,12 +290,13 @@ void task(void *pvParam)
                 timer = millis();
                 havelock_Projector = false;
             }
-            if (millis() - 5000 > timer)
+            if ((millis() - 5000) > timer)
             {
                 stepGame++;
                 first = true;
             }
         }
+        break;
         case _DEBUG:
         {
             _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DEBUG END!\n");
@@ -292,45 +320,17 @@ void task(void *pvParam)
             else
                 dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Projector);
         }
+        // 氣動門
+        if (dataInput_32t & pinMCP_Input_Remote_Door)
+            dataOutput_32t = dataOutput_32t | pinMCP_Output_Door;
+        else
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Door);
+        // 空氣消毒謎題跳過
+        if (dataInput_32t & pinMCP_Input_Remote_AirDisinfection)
+            dataOutput_32t = dataOutput_32t | pinMCP_Output_AirDisinfection;
+        else
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_AirDisinfection);
 
-        /*
-        // 如果RST石像
-        if (dataInput_32t & pinInputMPC_StoneRST_Remote)
-        {
-            isONStoneR = false;
-            isONStoneL = false;
-        }
-        else
-        {
-            // 如果開啟右石像
-            if (dataInput_32t & pinInputMPC_StoneR_Remote)
-                isONStoneR = true;
-            // 如果開啟左石像
-            if (dataInput_32t & pinInputMPC_StoneL_Remote)
-                isONStoneL = true;
-        }
-        // 依變數變更輸出
-        // 女神門
-        if (havelock_Door)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_Door);
-        else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_Door);
-        // 右石像
-        if (isONStoneR)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_StoneR);
-        else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_StoneR);
-        // 左石像
-        if (isONStoneL)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_StoneL);
-        else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_StoneL);
-        // 石像噴水
-        if (isONStoneWater)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_Stone_Water);
-        else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_Stone_Water);
-*/
         dataInputLast_32t = dataInput_32t;
 
         // strip.show();
@@ -371,7 +371,7 @@ void taskMCP230x7(void *pvParam)
         // 如果收到寫入封包
         if (xQueueReceive(queueMCP230x7_Output, &dataOutput_32t, 0) == pdPASS)
         {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "[task]MCP Output=%08X\n", dataInput_32t);
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "[task]MCP Output=%08X\n", dataOutput_32t);
             for (uint8_t i = 0; i < sizeof(mcpAddress); i++)
             {
                 uint8_t dataBit = (dataOutput_32t >> (i * 8)) & 0xFF;

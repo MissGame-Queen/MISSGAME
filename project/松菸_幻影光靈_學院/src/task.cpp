@@ -415,14 +415,18 @@ void taskWeaponLight(void *pvParam)
                             (*doc).containsKey("Pin") ? (*doc)["Pin"] : 15,
                             NEO_GRB + NEO_KHZ800);
     strip.begin();
-    strip.show();
+    if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
+    {
+        strip.show();
+        xSemaphoreGive(rmtMutex);
+    }
 
     uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
     uint32_t color = 0;
     uint8_t num = 0;
     uint32_t batterTimer = 0;
     uint8_t level = 0;
-    uint16_t limitPWM[] = {25, 25, 25, 0};
+    uint16_t limitPWM[] = {50, 50, 50, 0};
 
     bool isAutoPam = true;
     if (
@@ -444,28 +448,28 @@ void taskWeaponLight(void *pvParam)
         switch (id)
         {
         case 40 ... 49:
-            limitPWM[0] = 250;
-            limitPWM[1] = 250;
-            limitPWM[2] = 250;
+            limitPWM[0] = 50;
+            limitPWM[1] = 50;
+            limitPWM[2] = 50;
             break;
         case 50 ... 59:
-            limitPWM[0] = 250;
+            limitPWM[0] = 50;
             limitPWM[1] = 4000;
             break;
         case 60 ... 69:
-            limitPWM[0] = 125;
-            limitPWM[1] = 125;
-            limitPWM[2] = 125;
+            limitPWM[0] = 4000;
+            limitPWM[1] = 4000;
+            limitPWM[2] = 4000;
             break;
         case 70 ... 79:
-            limitPWM[0] = 125;
-            limitPWM[1] = 125;
-            limitPWM[2] = 125;
+            limitPWM[0] = 4000;
+            limitPWM[1] = 4000;
+            limitPWM[2] = 4000;
             break;
         case 80 ... 89:
-            limitPWM[0] = 80;
-            limitPWM[1] = 80;
-            limitPWM[2] = 70;
+            limitPWM[0] = 50;
+            limitPWM[1] = 50;
+            limitPWM[2] = 50;
             break;
         }
     }
@@ -475,7 +479,7 @@ void taskWeaponLight(void *pvParam)
         limitPWM[1] = (*doc)["_LIGHT_1"].as<uint16_t>();
         limitPWM[2] = (*doc)["_LIGHT_2"].as<uint16_t>();
         limitPWM[3] = (*doc)["_LIGHT_3"].as<uint16_t>();
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO,"%d,%d,%d,%d\n",limitPWM[0],limitPWM[1],limitPWM[2],limitPWM[3]);
+        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%d,%d,%d,%d\n", limitPWM[0], limitPWM[1], limitPWM[2], limitPWM[3]);
     }
     while (1)
     {
@@ -592,10 +596,10 @@ void taskWeaponLight(void *pvParam)
                 ledcWrite(3, 0);
             }
 
-            uint8_t maxled = map(valBattery * 100, 300, 420, 1, strip.numPixels());
+            uint8_t maxled = map(valBattery * 100, 230, 420, 1, strip.numPixels());
             for (uint16_t i = 0; i < strip.numPixels(); i++)
             {
-                color = setRainbowRGB(map(valBattery * 100, 300, 420, 0, 1536));
+                color = setRainbowRGB(map(valBattery * 100, 230, 420, 0, 1536));
                 color = setBrightnessRGB(color, maxled >= i ? map(timer % 1000, 0, 1000, 0, 125) : 0);
                 strip.setPixelColor(i, color);
             }
@@ -681,8 +685,11 @@ void taskWeaponLight(void *pvParam)
         }
         break;
         }
-
+    if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
+    {
         strip.show();
+        xSemaphoreGive(rmtMutex);
+    }
         _DELAY_MS((*doc)["DelayTime"].as<uint16_t>());
         /**
          * @brief 每10秒送目前電池電壓值

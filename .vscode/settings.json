@@ -28,6 +28,8 @@
         "algorithm": "cpp",
         "template.h": "c",
         "task.h": "c",
-        "future": "cpp"
+        "future": "cpp",
+        "atomic": "cpp",
+        "list": "cpp"
     }
 }
