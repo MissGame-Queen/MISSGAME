@@ -1,12 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
-
-
-
 #include <Template.h>
+#include "test.h"
 #include "task.h"
-
-
 #define _E2JS(x) (*Template_JsonPTC->getJsonObject())[#x]["Value"]
 // 描述{預設值,禁止的權限[R=讀取,W=寫入,S=寫入+存檔],HTML顯示的類型[默認text]}
 enum StrRegister
@@ -40,7 +36,7 @@ enum ModbusRegister
 
     _MODULE_TYPE,     // 模組類型{1}
     _MODULE_ID,       // 模組在環境中唯一ID{99}
-    _DEFAULT_MODE,    // 開機是否進入測試模式
+    _TESTMODE,        // 開機是否進入測試模式
     _SEVER_DEG_START, // 開始角度
     _SEVER_DEG_END,   // 結束角度
     _LIGHT_0,         // 自定義亮度0

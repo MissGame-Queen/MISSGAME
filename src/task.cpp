@@ -1,1085 +1,307 @@
-
-#include <Arduino.h>
-#define IR_RECEIVE_PIN 34  // D15
-#define IR_SEND_PIN 14     // D4
-#define TONE_PIN 27        // D27 25 & 26 are DAC0 and 1
-#define APPLICATION_PIN 16 // RX2 pin
-// #define LED_BUILTIN 16     // RX2 pin
-#define DECODE_NEC
-#include <IRremote.hpp> // include the library
-//?不知為何要放.cpp最上面
-
 #include "task.h"
 
-uint16_t SoundPlayerLevel[2] = {0, 0};
-String SoundPlayerName[2] = {"", ""};
-Audio *audioPCM5102 = new Audio();
-QueueHandle_t queueJson = xQueueCreate(1, sizeof(String));
-QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
-QueueHandle_t queueDFPlayer = xQueueCreate(1, sizeof(uint16_t));
-QueueHandle_t queueBallTime = xQueueCreate(1, sizeof(uint16_t));
-QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
-QueueHandle_t queueWeaponLight = xQueueCreate(1, sizeof(uint8_t));
-QueueHandle_t queueLINE_POST = xQueueCreate(1, sizeof(String));
-
-/**
- * @brief 出幣機程式
- *
- */
-void CoinDispenser(uint16_t time)
+void task(void *pvParam)
 {
-    const uint8_t pinServo = 15 /*13*/, pinLED = 4, pinTrigger = 36; // 15;
-    const uint16_t waittim = 600;
-    const int16_t startdeg = _E2JS(_SEVER_DEG_START).as<uint8_t>();
-    const int16_t enddeg = _E2JS(_SEVER_DEG_END).as<uint8_t>();
-    Servo myServo;            //   Create Servo object to control the servo
-    myServo.attach(pinServo); //   Servo is connected to digital pin 9
-    myServo.write(startdeg);
-    pinMode(pinLED, OUTPUT);
-    pinMode(pinTrigger, INPUT_PULLUP);
-    uint16_t BallTime = 0;
-    uint16_t BallTimeAdd = 0;
-    while (1)
+    enum Status_e
     {
-
-        bool isTrigger = analogRead(pinTrigger) > 512;
-        if (!isTrigger)
-        {
-            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出幣機被實體按鈕觸發了~");
-            BallTime++;
-            // Serial.println(BallTime);
-        }
-        if (xQueueReceive(queueBallTime, &BallTimeAdd, 0) == pdPASS)
-            BallTime += BallTimeAdd;
-        while (BallTime > 0)
-        {
-            BallTime--;
-            digitalWrite(pinLED, 0);
-            myServo.write(enddeg);
-            _DELAY_MS(waittim);
-            digitalWrite(pinLED, 1);
-            myServo.write(startdeg);
-            _DELAY_MS(waittim);
-        }
-        _DELAY_MS(50);
-    }
-}
-
-/**
- * @brief 出球機程式
- *
- */
-void taskBallDispenser(void *pvParam)
-{
-    Serial1.begin(9600, SERIAL_8N1, 22, 21);
-
-    pinMode(13, INPUT_PULLUP);
-    uint16_t BallTime = 0;
-    uint16_t BallTimeAdd = 0;
-    while (1)
-    {
-        if (!digitalRead(13))
-        {
-            BallTime++;
-            _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機被實體按鈕觸發了~");
-        }
-        if (xQueueReceive(queueBallTime, &BallTimeAdd, 0) == pdPASS)
-            BallTime += BallTimeAdd;
-
-        if (BallTime > 0)
-        {
-            bool dir = 0;
-            uint16_t speed = 50;
-            uint8_t acc = 200;
-            uint32_t pulses = 0x42A * BallTime;
-            uint16_t dalayTime = 400;
-            uint8_t parameter[6];
-            parameter[0] = (dir << 7) + ((speed >> 8) & 0xFF);
-            parameter[1] = speed & 0xFF;
-            for (uint8_t i = 0; i < 4; i++)
-                parameter[2 + i] = (pulses >> (8 * (3 - i))) & 0xFF;
-            uint8_t dataWrite[] = {0xFA, 0x01, 0xFD, parameter[0], parameter[1], acc, parameter[2],
-                                   parameter[3], parameter[4], parameter[5], 0x00};
-            uint16_t crc = 0;
-            for (uint8_t i = 0; i < sizeof(dataWrite); i++)
-                crc += dataWrite[i];
-            dataWrite[sizeof(dataWrite) - 1] = crc & 0xFF;
-            Serial1.write(dataWrite, sizeof(dataWrite));
-            _DELAY_MS(dalayTime);
-            if (Serial1.available())
-            {
-                uint8_t recallData[12];
-                for (uint8_t i = 0; i < 12 && Serial1.available(); i++)
-                {
-                    recallData[i] = Serial1.read();
-                    Serial.printf("0x%02x,", recallData[i]);
-                    _DELAY_MS(5);
-                }
-                Serial.println();
-                if (recallData[0] == 0xFB &&
-                    recallData[1] == 0x01 &&
-                    recallData[2] == 0xFD &&
-                    recallData[3] == 0x01 &&
-                    recallData[4] == 0xFA)
-                {
-                    BallTime = 0;
-                }
-            }
-        }
-        _DELAY_MS(100);
-
-        if (Serial1.available())
-        {
-            while (Serial1.available())
-                Serial.printf("0x%02X,", Serial1.read());
-            Serial.println();
-        }
-    }
-}
-
-void taskPCM5102(void *pvParam)
-{
-
-    DFRobotDFPlayerMini myDFPlayer;
-    Serial2.begin(9600);
-    bool state = false;
-    state = myDFPlayer.begin(Serial2, /*isACK = */ true, /*doReset = */ true);
-
-    if (state)
-    {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 已連線\n");
-        myDFPlayer.setTimeOut(500); // Set serial communictaion time out 500ms
-        myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-        myDFPlayer.volume(30);
-    }
-    else
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 連線失敗!\n1.請重新檢查連線！\n2.請插入SD卡！\n");
-    if (!SD.begin(5))
-        Serial.println("SD卡發生錯誤");
-    else
-        Serial.println("SD卡正常!!");
-
-    Audio *audio = (Audio *)pvParam;
-    audio->setPinout(27, 25, 26);
-    audio->setVolume(11); // 0...21
-    /*
-    Audio *audio[2];
-audio[0] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_0);
-audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
-    uint8_t type = audio->getI2sPort();
-
-    if (type == 0)
-    {
-        audio->setPinout(13, 14, 12);
-        audio->setVolume(5); // 0...21
-    }
-    else if (type == 1)
-    {
-        audio->setPinout(27, 25, 26);
-        audio->setVolume(5); // 0...21
-    }
-    else
-    {
-        while (1)
-        {
-            _DELAY_MS(1000);
-        }
-    }
-   */
-
-    String mp3Name = "";
-    uint16_t mp3Value = 0;
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘可用內存%d\n", esp_get_free_heap_size());
-    while (1)
-    {
-
-        if (xQueueReceive(queuePCM5102, &mp3Name, 0) == pdPASS)
-        {
-            if (mp3Name == "")
-            {
-                SoundPlayerLevel[0] = 0;
-                audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
-            }
-            else
-            {
-                audio->connecttoFS(SD, mp3Name.c_str());
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%d\n", mp3Name.c_str());
-
-                audio->loop();
-            }
-        }
-        if (SoundPlayerLevel[0] != 0)
-        {
-            if (!audio->isRunning())
-            {
-                SoundPlayerLevel[0] = 0;
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放結束!等級歸0\n");
-            }
-        }
-        audio->loop();
-
-        if (xQueueReceive(queueDFPlayer, &mp3Value, 0) == pdPASS)
-        {
-            if (state)
-            {
-                myDFPlayer.disableLoop();
-                myDFPlayer.stop();
-                if (mp3Value != 0)
-                {
-                    myDFPlayer.play(mp3Value);
-                    myDFPlayer.enableLoop();
-                }
-            }
-        }
-        if (myDFPlayer.available())
-        {
-            printDetail(myDFPlayer.readType(), myDFPlayer.read()); // Print the detail message from DFPlayer to handle different errors and states.
-        }
-        vTaskDelay(2);
-    }
-}
-/**
- * @brief 計時器程式
- *
- */
-/*
-void taskTimer(void *pvParam)
-{
-    // uint16_t second = 0;
-    String nowsecond = "00:00";
-    uint8_t status[2] = {0, 0};
-    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
-    const uint8_t pinOut[2]{22, 21};
-    const uint8_t pinin[]{36, 39, 34, 35, 32};
-    enum eStatus
-    {
-        STOP,  // 停止(不輸出)
-        RUN,   // 倒數中
-        PAUSE, // 暫停倒數
-        END,   // 停止(輸出訊號)
-        TEST,
+        _Reset,
+        _1,
+        _2,
+        _3,
+        _4,
+        _COMPLETED,
+        _PLAYSOUND,
+        _FINISH,
+        _DEBUG,
     };
-    SPI.begin(pinSH, 21, pinDS);
-    pinMode(pinDS, OUTPUT); // MO
-    pinMode(pinSH, OUTPUT); // SCK
-    pinMode(pinST, OUTPUT); // CS
-    pinMode(pinOut[0], OUTPUT);
-    pinMode(pinOut[1], OUTPUT);
+    const uint8_t mcpAddress[] = {0x27};
+    const uint8_t pinOutput[] = {12, 13, 14, 15};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
+    uint8_t stepGame = 0;
+    bool first = true;
+    uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
+    uint8_t dataInput_8t = 0, dataInputLast_8t = 0, dataOutput_8t = 0, dataOutputLast_8t = 0xFF;
+    JsonDocument doc;
+    const JsonDocument *ptrDoc = &doc;
 
-    Timer_status = TEST;
-    time_t time = 0;
-    tmTimer = *localtime(&time);
-    /*
-    while (xQueueReceive(queueTimer, &second, 100) != pdPASS)
-        _DELAY_MS(1000);
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "已收到秒數!%d\n", second);
-    nowsecond = second;
-    status[i] = RUN;
+    const uint32_t pinMCP_Ooutout_SmallDoor = (1 << 0);
+    const uint32_t pinMCP_Ooutout_NextDoor = (1 << 1);
+    const uint32_t pinMCP_Ooutout_Sound = (1 << 7);
+    const uint32_t pinMCP_Ooutout_Lingth = (1 << 3);
+    const uint32_t pinMCP_Input_Remote_Step = (1 << 0);
+    const uint32_t pinMCP_Input_Remote_Sound = (1 << 1);
+    const uint32_t pinMCP_Input_Remote_RE = (1 << 2);
 
-    uint8_t timeNum = 0;
-    bool isNeedPrint = 1;
-    bool isSet = false;
+    for (uint8_t i = 0; i < sizeof(pinInput); i++)
+    {
+        pinMode(pinInput[i], INPUT_PULLUP);
+    }
+    for (uint8_t i = 0; i < sizeof(pinOutput); i++)
+    {
+        pinMode(pinOutput[i], OUTPUT);
+        digitalWrite(pinOutput[i], 1);
+    }
+    pinMode(2, OUTPUT);
+    digitalWrite(2, 0);
+    Adafruit_PN532 myPN532[] = {
+        Adafruit_PN532(pinOutput[0], &SPI),
+        Adafruit_PN532(pinOutput[1], &SPI),
+        Adafruit_PN532(pinOutput[2], &SPI),
+        Adafruit_PN532(pinOutput[3], &SPI),
+    };
+    if (xSemaphoreTake(SPIMutex, portMAX_DELAY))
+    {
+
+        // Adafruit_PN532 myPN532[] = {Adafruit_PN532(pinOutput[0],&SPI)};
+        for (uint8_t i = 0; i < (sizeof(myPN532) / sizeof(myPN532[0])); i++)
+        {
+            digitalWrite(pinOutput[i], 0);
+            myPN532[i].begin();
+            uint32_t versiondata = 0;
+            versiondata = myPN532[i].getFirmwareVersion();
+            while (!versiondata)
+            {
+                myPN532[i].begin();
+                versiondata = myPN532[i].getFirmwareVersion();
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "[%d]找不到PN5xx!\n", i);
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "[%d]找到PN5%02X!硬體版本:%d.%d\n", i, (versiondata >> 24) & 0xFF, (versiondata >> 16) & 0xFF, (versiondata >> 8) & 0xFF);
+            // 設定從卡片讀取的最大重試次數
+            // 這可以防止我們永遠等待一張卡，即
+            // PN532 的預設行為。
+            myPN532[i].setPassiveActivationRetries(0xFF);
+            myPN532[i].SAMConfig();
+            digitalWrite(pinOutput[i], 1);
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+        xSemaphoreGive(SPIMutex);
+    }
+    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "等待ISO14443A卡\n");
+    uint8_t indexPN532 = 0, lastindexPN532 = 0xFF;
+
     while (1)
     {
-        status[0] = Timer_status;
-        // 如果狀態改變或處於倒數狀態
-        if (status[0] != status[1] || status[0] == RUN)
+        // 讀取MCP23017的Input資料
+        if (xQueueReceive(queueMCP230x7_Input, &dataInput_32t, 0) == pdPASS)
         {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "狀態為:%d,%d\n", status[0], status[1]);
-            status[1] = status[0];
-            switch (status[0])
+            ;
+        }
+        // 如果Output和上次不一樣則輸出到MCP23017
+        if (dataOutput_32t != dataOutputLast_32t)
+        {
+            xQueueSend(queueMCP230x7_Output, &dataOutput_32t, portMAX_DELAY);
+            dataOutputLast_32t = dataOutput_32t;
+        }
+        dataInput_8t = 0;
+        for (uint8_t i = 0; i < sizeof(pinOutput); i++)
+        {
+            dataInput_8t += ((!digitalRead(pinInput[i])) ? 1 << i : 0);
+        }
+        if (dataInputLast_8t != dataInput_8t)
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "主控輸入:%02x!\n", dataInput_8t);
+            dataInputLast_8t = dataInput_8t;
+        }
+        if (dataOutput_8t != dataOutputLast_8t)
+        {
+            dataOutputLast_8t = dataOutput_8t;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "主控輸出:%02x!\n", dataOutput_8t);
+            for (uint8_t i = 0; i < sizeof(pinOutput); i++)
             {
-            case STOP:
-                digitalWrite(pinOut[0], 1);
-                digitalWrite(pinOut[1], 0);
-                nowsecond = Timer_newSecond;
-                isNeedPrint = 1;
-                isSet = true;
-                tmTimer.tm_min = Timer_newSecond.substring(0, 2).toInt();
-                tmTimer.tm_sec = Timer_newSecond.substring(Timer_newSecond.length() - 2).toInt();
-                char buffer[10];
-                if (millis() % 1000 < 500)
-                    sprintf(buffer, "%02d:%02d", tmTimer.tm_min, tmTimer.tm_sec);
-                else
-                    sprintf(buffer, "%02d%02d", tmTimer.tm_min, tmTimer.tm_sec);
-                nowsecond = buffer;
-                set74HC595(nowsecond);
-                break;
-            case END:
-                digitalWrite(pinOut[0], 0);
-                digitalWrite(pinOut[1], 1);
-                set74HC595("00:00");
-                break;
-            case PAUSE:
-                break;
-            case RUN:
-            {
-                char buffer[10];
-                if (isNeedPrint)
-                {
+                digitalWrite(pinOutput[i], dataOutput_8t & (1 << i));
+            }
+        }
 
-                    if (!isSet)
+        //[ ]遊戲流程
+
+        switch (stepGame)
+        {
+        case _Reset:
+        {
+            doc["Serial"]["value"] = 0;
+            doc["Serial"]["loop"] = false;
+            doc["I2S"]["name"] = "";
+            xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+            digitalWrite(2, 0);
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+            stepGame++;
+            first = true;
+            lastindexPN532 = 0xFF;
+            dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_SmallDoor;
+            dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_NextDoor;
+            dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
+        }
+        break;
+        case _1:
+        case _2:
+        case _3:
+        case _4:
+        {
+            static uint32_t timer = 0;
+            static bool ONscanning = true;
+            if (first)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                // xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                ONscanning = true;
+                timer = 0;
+            }
+            if (!ONscanning && millis() > timer + 1000)
+            {
+                ONscanning = true;
+            }
+            if (ONscanning)
+            {
+                if (xSemaphoreTake(SPIMutex, portMAX_DELAY))
+                {
+                    bool success = false;
+                    uint8_t uid[7] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
+                    uint8_t uidLength = 0;
+                    digitalWrite(pinOutput[indexPN532], 0);
+                    success = myPN532[indexPN532].readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
+
+                    if (success)
                     {
-                        // 將 tm 轉換為 time_t 型別
-                        time_t time = mktime(&tmTimer);
-                        if (tmTimer.tm_min != 0 || tmTimer.tm_sec != 0)
+                        ONscanning = false;
+                        timer = millis();
+                        // 避免連續讀取,關閉掃描功能直至開啟
+                        if (lastindexPN532 != indexPN532)
                         {
-                            // 扣 1 秒
-                            time--;
-                            // 將 time 轉換為 tm 型別
-                            tmTimer = *localtime(&time);
-                            if (tmTimer.tm_min == 0 && tmTimer.tm_sec == 0)
-                                Timer_status = END;
+                            lastindexPN532 = indexPN532;
+                            String fmt = "%02X";
+                            char teststr[fmt.length() - 2];
+                            String testString = "";
+                            for (uint8_t i = 0; i < uidLength; i++)
+                            {
+                                snprintf(teststr, fmt.length() - 1, fmt.c_str(), uid[i]);
+                                testString += teststr;
+                                i == uidLength - 1 ? testString += "" : testString += " ";
+                            }
+                            // _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "[%d]找到一張卡片!UID長度:%d,UID:%s\n", indexPN532, uidLength, testString.c_str());
+                            if ((stepGame - _1) == indexPN532)
+                            {
+                                stepGame++;
+                                first = true;
+                            }
+                            else if (indexPN532 == 0)
+                            {
+                                stepGame = _2;
+                                first = true;
+                            }
+                            else
+                            {
+                                stepGame = _1;
+                                first = true;
+                            }
                         }
-                        else
-                            Timer_status = END;
                     }
-                    else
-                        isSet = false;
-                    sprintf(buffer, "%02d:%02d", tmTimer.tm_min, tmTimer.tm_sec);
-                    isNeedPrint = !isNeedPrint;
+                    digitalWrite(pinOutput[indexPN532], 1);
+                    xSemaphoreGive(SPIMutex);
                 }
-                else
-                {
-                    sprintf(buffer, "%02d%02d", tmTimer.tm_min, tmTimer.tm_sec);
-                    isNeedPrint = !isNeedPrint;
-                }
-                nowsecond = buffer;
-                set74HC595(nowsecond);
-            }
-            break;
-            case TEST:
-                for (byte i = 0; i < 10; i++)
-                {
-                    set74HC595(String(i) + String(i) + (i % 2 == 0 ? ":" : "") + String(i) + String(i));
-                    delay(500);
-                }
-                Timer_status = END;
-                break;
-            }
-        }
-        _DELAY_MS(500);
-    }
-}
-/*
-/**
- * @brief
- *
- */
-void taskFQ512(uint16_t cmd)
-{
-    // Tx:000514-01 06 1F 41 00 01 1F CA
-    // Tx:000515-01 06 1F 41 00 00 DE 0A
-
-    CRC16_parameter_t Modbus_CRC;
-    uint8_t dataWrite[] = {0x01, 0x06, 0x1F, 0x41, uint8_t((cmd >> 8) & 0xFF), uint8_t(cmd & 0xFF), 0x00, 0x00};
-    uint8_t dataLength = sizeof(dataWrite);
-    uint16_t crc = CRC_16(dataWrite, dataLength - 2, &Modbus_CRC);
-    dataWrite[dataLength - 1] = crc >> 8;
-    dataWrite[dataLength - 2] = crc & 0xFF;
-    for (uint8_t i = 0; i < dataLength; i++)
-    {
-        Serial.printf("0x%02X,", dataWrite[i]);
-        Serial2.write(dataWrite[i]);
-    }
-    Serial.println();
-
-    _DELAY_MS(100);
-    /*
-        for (uint8_t i = 0; i < sizeof(dataWrite); i++)
-            Serial.printf("%02x,", dataWrite[i]);
-        Serial.println();
-        */
-}
-
-/**
- * @brief 武器燈
- *
- */
-void taskWeaponLight(void *pvParam)
-{
-
-    JsonDocument *doc = (JsonDocument *)pvParam;
-    const uint8_t pinOut[]{25, 26, 27, 33};
-    const uint8_t pinCHG = 5;
-    const uint8_t pinBattery = 32;
-    for (size_t i = 0; i < sizeof(pinOut); i++)
-    {
-        ledcSetup(i, 1000, 12);
-        ledcAttachPin(pinOut[i], i);
-        ledcWrite(i, 0);
-    }
-    pinMode(pinCHG, INPUT_PULLUP);
-    Adafruit_NeoPixel strip((*doc).containsKey("Length") ? (*doc)["Length"] : 11,
-                            (*doc).containsKey("Pin") ? (*doc)["Pin"] : 15,
-                            NEO_GRB + NEO_KHZ800);
-    strip.begin();
-    if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
-    {
-        strip.show();
-        xSemaphoreGive(rmtMutex);
-    }
-
-    uint16_t id = _E2JS(_MODULE_ID).as<uint16_t>();
-    uint32_t color = 0;
-    uint8_t num = 0;
-    uint32_t batterTimer = 0;
-    uint8_t level = 0;
-    uint16_t limitPWM[] = {50, 50, 50, 0};
-
-    bool isAutoPam = true;
-    if (
-        (*doc).containsKey("_LIGHT_0") &&
-        (*doc).containsKey("_LIGHT_1") &&
-        (*doc).containsKey("_LIGHT_2") &&
-        (*doc).containsKey("_LIGHT_3"))
-    {
-        if ((*doc)["_LIGHT_0"].as<uint16_t>() != 0 ||
-            (*doc)["_LIGHT_1"].as<uint16_t>() != 0 ||
-            (*doc)["_LIGHT_2"].as<uint16_t>() != 0 ||
-            (*doc)["_LIGHT_3"].as<uint16_t>() != 0)
-        {
-            isAutoPam = false;
-        }
-    }
-    if (isAutoPam)
-    {
-        switch (id)
-        {
-        case 40 ... 49:
-            limitPWM[0] = 50;
-            limitPWM[1] = 50;
-            limitPWM[2] = 50;
-            break;
-        case 50 ... 59:
-            limitPWM[0] = 50;
-            limitPWM[1] = 4000;
-            break;
-        case 60 ... 69:
-            limitPWM[0] = 4000;
-            limitPWM[1] = 4000;
-            limitPWM[2] = 4000;
-            break;
-        case 70 ... 79:
-            limitPWM[0] = 4000;
-            limitPWM[1] = 4000;
-            limitPWM[2] = 4000;
-            break;
-        case 80 ... 89:
-            limitPWM[0] = 50;
-            limitPWM[1] = 50;
-            limitPWM[2] = 50;
-            break;
-        }
-    }
-    else
-    {
-        limitPWM[0] = (*doc)["_LIGHT_0"].as<uint16_t>();
-        limitPWM[1] = (*doc)["_LIGHT_1"].as<uint16_t>();
-        limitPWM[2] = (*doc)["_LIGHT_2"].as<uint16_t>();
-        limitPWM[3] = (*doc)["_LIGHT_3"].as<uint16_t>();
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%d,%d,%d,%d\n", limitPWM[0], limitPWM[1], limitPWM[2], limitPWM[3]);
-    }
-    while (1)
-    {
-        if (xQueueReceive(queueWeaponLight, &level, 0) == pdPASS)
-        {
-            (*doc)["Level"].set(level);
-            //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "等級為%d\n", (*doc)["Level"].as<uint8_t>());
-        }
-
-        /*
- 30~39 杖
- 40~49 矛
- 50~59 錘
- 60~69 鞭
- 70~79 劍
- 80~89 斧
- */
-
-        switch ((*doc)["Level"].as<uint8_t>())
-        {
-        case 1:
-        {
-            ledcWrite(1, 0);
-            ledcWrite(2, 0);
-            ledcWrite(3, 0);
-            switch (num)
-            {
-            case 1 ... 5:
-            case 16 ... 20:
-                for (uint16_t i = 0; i < strip.numPixels(); i++)
-                    strip.setPixelColor(i, strip.Color(255, 0, 0));
-                ledcWrite(0, limitPWM[0]);
-                break;
-            case 6 ... 15:
-            case 21 ... 60:
-                for (uint16_t i = 0; i < strip.numPixels(); i++)
-                    strip.setPixelColor(i, 0);
-                ledcWrite(0, 0);
-                break;
-            default:
-                num = 0;
-                break;
-            }
-            num++;
-        }
-        break;
-        case 2:
-        {
-            ledcWrite(2, 0);
-            ledcWrite(3, 0);
-            int16_t cycle = 2000;
-            int16_t cycle_color = 1500;
-            int16_t brightness = 155;
-            uint16_t val = map(millis() % cycle, 0, cycle, 0, strip.numPixels() * 2);
-            color = setRainbowRGB(map(millis() % cycle_color, 0, cycle_color, 0, 1536));
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
-            {
-                uint32_t ws2812color = color;
-                uint8_t b = (i <= val && val - i <= strip.numPixels() ? map(val - i, 0, strip.numPixels(), brightness, 0) : 0);
-                ws2812color = setBrightnessRGB(ws2812color, b);
-                strip.setPixelColor(i, ws2812color);
-            }
-            uint16_t ledval = millis() % cycle;
-            for (uint8_t i = 0; i < 2; i++)
-            {
-                if (ledval <= cycle / 2)
-                    brightness = map(ledval, 0, cycle / 2, 0, limitPWM[i]);
-                else
-                    brightness = map(ledval, cycle / 2, cycle, limitPWM[i], 0);
-                ledcWrite(i, brightness);
+                indexPN532 = (indexPN532 + 1) % (sizeof(myPN532) / sizeof(myPN532[0]));
             }
         }
         break;
-        case 3:
+        case _COMPLETED:
         {
-            int16_t cycle = 1000;
-            int16_t brightness = 100;
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            if (first)
             {
-                color = setRainbowRGB((map(millis() % cycle, 0, cycle, 1536, 0) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
-                color = setBrightnessRGB(color, brightness);
-                strip.setPixelColor(i, color);
-            }
-            for (uint8_t i = 0; i < 3; i++)
-                ledcWrite(i, limitPWM[i]);
-        }
-        break;
-            // 充電動畫
-        case 97:
-        {
-            float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
-            int roundedNumber = round(number * 100);                    // 将浮点数乘以100后四舍五入为整数
-            float valBattery = roundedNumber / 100.0;                   // 将四舍五入后的整数除以100得到保留两位小数的浮点数
-            uint32_t timer = millis();
-            if (valBattery < 3)
-            {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, 0);
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-            }
-            else if (valBattery > 3 && valBattery < 3.7)
-            {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-            }
-            else
-            {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
-                ledcWrite(2, map(timer % 1000, 0, 1000, 0, limitPWM[2]));
-                ledcWrite(3, 0);
-            }
-
-            uint8_t maxled = map(valBattery * 100, 230, 420, 1, strip.numPixels());
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
-            {
-                color = setRainbowRGB(map(valBattery * 100, 230, 420, 0, 1536));
-                color = setBrightnessRGB(color, maxled >= i ? map(timer % 1000, 0, 1000, 0, 125) : 0);
-                strip.setPixelColor(i, color);
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                doc["Serial"]["value"] = 1;
+                doc["Serial"]["loop"] = false;
+                doc["I2S"]["name"] = "/mp3/0001通靈板成功.mp3";
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_SmallDoor);
             }
         }
         break;
-        // 亮度測試
-        case 98:
-            ledcWrite(0, limitPWM[0]);
-            ledcWrite(1, limitPWM[1]);
-            ledcWrite(2, limitPWM[2]);
-            ledcWrite(3, limitPWM[3]);
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
-            {
-                color = setRainbowRGB((map(millis() % 1000, 0, 1000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
-                color = setBrightnessRGB(color, 125);
-                strip.setPixelColor(i, color);
-            }
-            break;
-            // 預設開機動畫
-        case 99:
+        case _PLAYSOUND:
         {
-            switch (num)
+            static uint32_t timer = 0;
+            if (first)
             {
-            case 0 ... 20:
-                ledcWrite(0, map(num, 0, 20, 0, limitPWM[0]));
-                ledcWrite(1, 0);
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-                break;
-            case 21 ... 40:
-                ledcWrite(0, limitPWM[0]);
-                ledcWrite(1, map(num, 21, 40, 0, limitPWM[1]));
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-                break;
-            case 41 ... 60:
-                ledcWrite(0, limitPWM[0]);
-                ledcWrite(1, limitPWM[1]);
-                ledcWrite(2, map(num, 41, 60, 0, limitPWM[2]));
-                ledcWrite(3, 0);
-                break;
-            case 61 ... 80:
-                ledcWrite(0, limitPWM[0]);
-                ledcWrite(1, limitPWM[1]);
-                ledcWrite(2, map(num, 61, 80, limitPWM[2], 0));
-                ledcWrite(3, 0);
-                break;
-            case 81 ... 100:
-                ledcWrite(0, limitPWM[0]);
-                ledcWrite(1, map(num, 81, 100, limitPWM[1], 0));
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-                break;
-            case 101 ... 120:
-                ledcWrite(0, map(num, 101, 120, limitPWM[0], 0));
-                ledcWrite(1, 0);
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-                break;
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_Sound);
 
-            default:
-                num = 0;
-                break;
+                timer = millis();
             }
-            num++;
-
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
+            if (timer != 0 && millis() > timer + 500)
             {
-                color = setRainbowRGB((map(millis() % 1000, 0, 1000, 0, 1536) + map(i, 0, strip.numPixels(), 0, 1536)) % 1536);
-                color = setBrightnessRGB(color, num < 60 ? map(num, 0, 61, 0, 125) : map(num, 61, 121, 125, 0));
-                strip.setPixelColor(i, color);
+                timer = 0;
+                dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
+            }
+        }
+        case _FINISH:
+        {
+            if (first)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_NextDoor);
             }
         }
         break;
         default:
-        {
-            ledcWrite(0, 0);
-            ledcWrite(1, 0);
-            ledcWrite(2, 0);
-            ledcWrite(3, 0);
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
-                strip.setPixelColor(i, 0);
+            break;
         }
-        break;
-        }
-    if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
-    {
-        strip.show();
-        xSemaphoreGive(rmtMutex);
-    }
-        _DELAY_MS((*doc)["DelayTime"].as<uint16_t>());
-        /**
-         * @brief 每10秒送目前電池電壓值
-         *
-         */
-        // _E2JS(_BATTERY_VAL) = roundf(analogRead(pinBattery) * 0.0017465437788018 * 100) / 100;
-        if (millis() > batterTimer + 10000)
+        //[ ]遙控器
+        // 如果按下播放語音
+        /*
+        if (dataInput_32t & pinMCP_Input_Remote_Sound ||
+            dataInput_8t & pinMCP_Input_Remote_Sound)
         {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "讀取電池電量!\n");
-            if (socketIO_Client.isConnected())
+            static uint32_t timer = 0;
+            if (millis() > timer + 3000)
             {
-                float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
-                int roundedNumber = round(number * 100);                    // 将浮点数乘以100后四舍五入为整数
-                _E2JS(_BATTERY_VAL) = roundedNumber / 100.0;                // 将四舍五入后的整数除以100得到保留两位小数的浮点数
-                const char *str = String(_E2JS(_BATTERY_VAL).as<float>()).c_str();
-                JsonDocument doc;
-                JsonArray array = doc.to<JsonArray>();
-                array.add("MissGame");
-                JsonObject param1 = array.add<JsonObject>();
-                // JsonObject param1 = array.createNestedObject();
-                param1["battery"] = roundedNumber / 100.0; //?不知為何 _E2JS(_BATTERY_VAL)還原會怪怪的
-                param1["id"] = _E2JS(_MODULE_ID).as<uint16_t>();
-
-                String output;
-                serializeJson(doc, output);
-                // serializeJsonPretty(doc, Serial);
-                socketIO_Client.sendEVENT(output);
-            }
-
-            batterTimer = millis();
-        }
-        if (level != 97)
-        {
-            if (!digitalRead(pinCHG))
-            {
-                const uint8_t level = 97;
-                xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "充電模式!\n");
+                timer = millis();
+                dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
             }
         }
-        else if (digitalRead(pinCHG))
+        */
+        // 如果按下跳關鍵
+        if (dataInput_32t & pinMCP_Input_Remote_Step ||
+            dataInput_8t & pinMCP_Input_Remote_Step)
         {
-            const uint8_t level = 0;
-            xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "結束充電模式!關閉LED\n");
-        }
-    }
-}
-/**
- * @brief 蜘蛛
- *
- * @param pvParam
- */
-void taskSpider(void *pvParam)
-{
-    // 初始化
-    const uint8_t pinOut[]{25, 26, 27, 33};
-    for (size_t i = 0; i < sizeof(pinOut); i++)
-    {
-        pinMode(pinOut[i], OUTPUT);
-        digitalWrite(pinOut[i], 0);
-    }
-    String StrJson = "";
-    JsonDocument doc;
-    while (1)
-    {
-        // 如果收到隊列
-        if (xQueueReceive(queueJson, &StrJson, 0) == pdPASS)
-        {
-            // 反序列化隊列資料
-            DeserializationError error = deserializeJson(doc, StrJson);
-            if (error)
+            static uint32_t timer = 0;
+            if (millis() > timer + 3000)
             {
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
-            }
-            else
-            {
-                // 如果包含value
-                if (doc.containsKey("value"))
+                timer = millis();
+                first = true;
+                switch (stepGame)
                 {
-                    // 變更馬達輸出狀態
-                    if (doc["value"].as<int16_t>() > 0)
-                    {
-                        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "開始動作!");
-                        for (size_t i = 0; i < sizeof(pinOut); i++)
-                        {
-                            digitalWrite(pinOut[i], 1);
-                        }
-                    }
-                    else
-                    {
-                        _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "結束動作!");
-
-                        for (size_t i = 0; i < sizeof(pinOut); i++)
-                        {
-                            digitalWrite(pinOut[i], 0);
-                        }
-                    }
+                case _COMPLETED:
+                case _PLAYSOUND:
+                    stepGame++;
+                    break;
+                case _FINISH:
+                    stepGame = _Reset;
+                    break;
+                default:
+                    stepGame = _COMPLETED;
+                    break;
                 }
             }
         }
-        _DELAY_MS(100);
-    }
-}
-
-/**
- * @brief 訊號延長器
- *
- */
-void taskSignalExtender()
-{
-    const uint8_t pinOut = 13, pinIn = 15, pinLED = 2;
-    pinMode(pinIn, INPUT_PULLUP);
-    pinMode(pinOut, OUTPUT);
-    pinMode(pinLED, OUTPUT);
-    digitalWrite(pinOut, 0);
-    digitalWrite(pinLED, 0);
-    uint8_t numCoin = 0;
-    uint32_t numTimer = 0;
-    uint16_t numWriteLong = 500;
-    bool isCoinEnter = false;
-    bool swOnOff = false;
-    while (1)
-    {
-        bool statuses = digitalRead(pinIn);
-        // 如果有訊號就+1並等待恢復
-        if (!statuses && !isCoinEnter)
+        // 如果按下RE鍵
+        if (dataInput_32t & pinMCP_Input_Remote_RE ||
+            dataInput_8t & pinMCP_Input_Remote_RE)
         {
-            isCoinEnter = true;
-            numCoin++;
-        }
-        else if (statuses && isCoinEnter)
-        {
-            isCoinEnter = false;
-        }
-        // 如果計數大於0就持續的ON/OFF固定毫秒數
-        if (numCoin > 1)
-        {
-            // ON週期
-            if (numTimer == 0 && !swOnOff)
+            static uint32_t timer = 0;
+            if (millis() > timer + 3000)
             {
-                swOnOff = true;
-                numTimer = millis();
-                digitalWrite(pinOut, 1);
-                digitalWrite(pinLED, 1);
-            } // OFF週期
-            else if (numTimer > 0 && millis() > numTimer + numWriteLong && swOnOff)
-            {
-                swOnOff = false;
-                numTimer = millis();
-                digitalWrite(pinOut, 0);
-                digitalWrite(pinLED, 0);
-            } // 計數-1並重置
-            else if (numTimer > 0 && millis() > numTimer + numWriteLong && !swOnOff)
-            {
-                numCoin--;
-                numTimer = 0;
+                timer = millis();
+                stepGame = _Reset;
+                first = true;
             }
         }
-        _DELAY_MS(1);
-    }
-}
+        dataInputLast_32t = dataInput_32t;
 
-void taskIRController()
-{
-    const uint8_t pinReceiver = 34;
-    IrSender.begin();     // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
-    disableLEDFeedback(); // Disable feedback LED at default feedback LED pin
-    // IrSender.sendNEC(0x00, 1, 1);
-    IrReceiver.begin(pinReceiver, ENABLE_LED_FEEDBACK);
-    printActiveIRProtocols(&Serial);
-    String StrJson = "";
-    JsonDocument doc;
-    while (1)
-    {
-        // 如果收到隊列
-        if (xQueueReceive(queueJson, &StrJson, 0) == pdPASS)
-        {
-            // 反序列化隊列資料
-            DeserializationError error = deserializeJson(doc, StrJson);
-            if (error)
-            {
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "反序列化失敗:%s\n", error.c_str());
-                _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
-            }
-            else
-            {
-                if (doc.containsKey("command") && doc.containsKey("address"))
-                    IrSender.sendNEC(doc["address"].as<uint16_t>(), doc["command"].as<uint16_t>(), 1);
-            }
-        }
-
-        if (IrReceiver.decode())
-        {
-
-            if (IrReceiver.decodedIRData.protocol == UNKNOWN)
-            {
-                Serial.println(F("Received noise or an unknown (or not yet enabled) protocol"));
-                // We have an unknown protocol here, print extended info
-                IrReceiver.printIRResultRawFormatted(&Serial, true);
-                IrReceiver.resume(); // Do it here, to preserve raw data for printing with printIRResultRawFormatted()
-            }
-            else
-            {
-                IrReceiver.resume(); // Early enable receiving of the next IR frame
-                IrReceiver.printIRResultShort(&Serial);
-                IrReceiver.printIRSendUsage(&Serial);
-                IrSender.sendNEC(IrReceiver.decodedIRData.address, IrReceiver.decodedIRData.command, 1);
-            }
-            Serial.println();
-        }
-
+        // strip.show();
         _DELAY_MS(50);
     }
-}
-
-/**
- * @brief
- *
- */
-void taskLINE_POST()
-{
-    while (1)
-    {
-        String str = "";
-        if (WiFi.status() == WL_CONNECTED)
-        { // 檢查是否連接 WiFi
-            if (xQueueReceive(queueLINE_POST, &str, 100) == pdPASS)
-            {
-                JsonDocument doc;
-                DeserializationError error = deserializeJson(doc, str);
-                if (error)
-                {
-                    _CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
-                }
-                else if (doc.containsKey("message"))
-                {
-                    HTTPClient http;
-                    http.begin("https://notify-api.line.me/api/notify"); // LINE Notify API URL
-                    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-                    http.addHeader("Authorization", "Bearer fnBwOwWj1fGtJNq8AzUxYGH0rOFI6gxCNynpjcTV2v6");
-
-                    String postData = "message=" + doc["message"].as<String>();
-
-                    int httpResponseCode = http.POST(postData);
-
-                    if (httpResponseCode > 0)
-                    {
-                        String response = http.getString();
-                        Serial.println("HTTP Response code: " + String(httpResponseCode));
-                        Serial.println("Response: " + response);
-                    }
-                    else
-                    {
-                        Serial.println("Error on sending POST: " + String(httpResponseCode));
-                    }
-
-                    http.end(); // 釋放資源
-                }
-            }
-        }
-        else
-        {
-            Serial.println("WiFi Disconnected");
-        }
-        _DELAY_MS(1);
-    }
-}
-
-/**
- * @brief 將數字格式輸出到74HC595
- *
- * @param newTime
- */
-void set74HC595(String newTime)
-{
-    const uint8_t bitNumber[2][10]{{B11111100, B01100000, B11011010, B11110010, B01100110,
-                                    B10110110, B10111110, B11100000, B11111110, B11110110},
-                                   {B11111100, B00001100, B11011010, B10011110, B00101110,
-                                    B10110110, B11110110, B00011100, B11111110, B10111110}};
-    const uint8_t pinDS = 23, pinSH = 18, pinST = 4;
-    String str = newTime;
-    // SPI.beginTransaction(SPISettings(1000, LSBFIRST, SPI_MODE3));
-    digitalWrite(pinST, LOW);
-    for (int8_t i = sizeof(str) - 1, j = i; i >= 0; i--, j--)
-    {
-        if (str[i] == ':' || str[i] == '.' ? 1 : 0)
-            continue;
-        uint8_t data = bitNumber[i < 2 ? 0 : 1][str[i] - '0'];
-        SPI.transfer(data + (i > 0 && (str[i + 1] == ':' || str[i + 1] == '.' || str[i - 1] == ':' || str[i - 1] == '.') ? 1 : 0));
-        // SPI.transfer(1 << i);
-    }
-    digitalWrite(pinST, HIGH);
-    //    SPI.endTransaction();
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘時間: %s\n", str.c_str());
-}
-/**
- * @brief MP3模組的細節
- *
- * @param type
- * @param value
- */
-void printDetail(uint8_t type, int value)
-{
-    switch (type)
-    {
-    case TimeOut:
-        Serial.println(F("Time Out!"));
-        break;
-    case WrongStack:
-        Serial.println(F("Stack Wrong!"));
-        break;
-    case DFPlayerCardInserted:
-        Serial.println(F("Card Inserted!"));
-        break;
-    case DFPlayerCardRemoved:
-        Serial.println(F("Card Removed!"));
-        break;
-    case DFPlayerCardOnline:
-        Serial.println(F("Card Online!"));
-        break;
-    case DFPlayerUSBInserted:
-        Serial.println("USB Inserted!");
-        break;
-    case DFPlayerUSBRemoved:
-        Serial.println("USB Removed!");
-        break;
-    case DFPlayerPlayFinished:
-        Serial.print(F("Number:"));
-        Serial.print(value);
-        Serial.println(F(" Play Finished!"));
-        break;
-    case DFPlayerError:
-        Serial.print(F("DFPlayerError:"));
-        switch (value)
-        {
-        case Busy:
-            Serial.println(F("Card not found"));
-            break;
-        case Sleeping:
-            Serial.println(F("Sleeping"));
-            break;
-        case SerialWrongStack:
-            Serial.println(F("Get Wrong Stack"));
-            break;
-        case CheckSumNotMatch:
-            Serial.println(F("Check Sum Not Match"));
-            break;
-        case FileIndexOut:
-            Serial.println(F("File Index Out of Bound"));
-            break;
-        case FileMismatch:
-            Serial.println(F("Cannot Find File"));
-            break;
-        case Advertise:
-            Serial.println(F("In Advertise"));
-            break;
-        default:
-            break;
-        }
-        break;
-    default:
-        break;
-    }
-}
-
-uint16_t CRC_16(byte *data, uint16_t len, CRC16_parameter_t *CRC16_parameter)
-{
-    uint16_t val = CRC16_parameter->Initialvalue;
-    uint16_t Polynomial = 0;
-    if (CRC16_parameter->Inputinversion)
-    {
-        for (uint16_t i = 0x8000, j = 1; i != 0; i >>= 1, j <<= 1)
-            CRC16_parameter->Polynomial &j ? Polynomial += i : Polynomial += 0;
-    }
-    else
-        Polynomial = CRC16_parameter->Polynomial;
-    while (len--)
-    {
-        val ^= *data++;
-        for (byte j = 0; j < 8; j++)
-        {
-            if (CRC16_parameter->Outputinversion)
-                val & 0x01 ? val = (val >> 1) ^ Polynomial : val = val >> 1;
-
-            else
-                val & 0x80 ? val = (val << 1) ^ Polynomial : val = val << 1;
-        }
-    }
-
-    return val ^ CRC16_parameter->XORvalue;
 }
