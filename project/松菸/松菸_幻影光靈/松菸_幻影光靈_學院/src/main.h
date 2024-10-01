@@ -1,9 +1,11 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-
-
+#define HAVE_TEMPLATE
+#ifdef HAVE_TEMPLATE
 #include <Template.h>
+#endif
+#include <MissGame.h>
 #include "task.h"
 
 

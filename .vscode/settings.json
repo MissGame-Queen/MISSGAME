@@ -30,6 +30,14 @@
         "task.h": "c",
         "future": "cpp",
         "atomic": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "socketioclient.h": "c",
+        "macros.h": "c",
+        "serveron.h": "c",
+        "wifimulti.h": "c",
+        "tasktemplate.h": "c",
+        "audio.h": "c",
+        "myfunction.h": "c",
+        "init.h": "c"
     }
 }

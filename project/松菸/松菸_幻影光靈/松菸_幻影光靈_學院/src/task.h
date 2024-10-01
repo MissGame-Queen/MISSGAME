@@ -12,7 +12,6 @@ extern String SoundPlayerName[2];
 extern Audio *audioPCM5102;
 extern QueueHandle_t queueJson;
 extern QueueHandle_t queueTimer;
-extern QueueHandle_t queuePCM5102;
 extern QueueHandle_t queueDFPlayer;
 extern QueueHandle_t queueBallTime;
 extern QueueHandle_t queueWeaponLight;
@@ -28,7 +27,6 @@ typedef struct CRC16_parameter_t
 void CoinDispenser(uint16_t time = 0);
 void taskBallDispenser(void *pvParam);
 //void taskTimer(void *pvParam);
-void taskPCM5102(void *pvParam);
 void set74HC595(String newTime);
 void printDetail(uint8_t type, int value);
 void taskWeaponLight(void *pvParam);

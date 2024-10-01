@@ -15,7 +15,6 @@ uint16_t SoundPlayerLevel[2] = {0, 0};
 String SoundPlayerName[2] = {"", ""};
 Audio *audioPCM5102 = new Audio();
 QueueHandle_t queueJson = xQueueCreate(1, sizeof(String));
-QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
 QueueHandle_t queueDFPlayer = xQueueCreate(1, sizeof(uint16_t));
 QueueHandle_t queueBallTime = xQueueCreate(1, sizeof(uint16_t));
 QueueHandle_t queueTimer = xQueueCreate(1, sizeof(String));
@@ -137,108 +136,6 @@ void taskBallDispenser(void *pvParam)
     }
 }
 
-void taskPCM5102(void *pvParam)
-{
-
-    DFRobotDFPlayerMini myDFPlayer;
-    Serial2.begin(9600);
-    bool state = false;
-    state = myDFPlayer.begin(Serial2, /*isACK = */ true, /*doReset = */ true);
-
-    if (state)
-    {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 已連線\n");
-        myDFPlayer.setTimeOut(500); // Set serial communictaion time out 500ms
-        myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-        myDFPlayer.volume(30);
-    }
-    else
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 連線失敗!\n1.請重新檢查連線！\n2.請插入SD卡！\n");
-    if (!SD.begin(5))
-        Serial.println("SD卡發生錯誤");
-    else
-        Serial.println("SD卡正常!!");
-
-    Audio *audio = (Audio *)pvParam;
-    audio->setPinout(27, 25, 26);
-    audio->setVolume(11); // 0...21
-    /*
-    Audio *audio[2];
-audio[0] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_0);
-audio[1] = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
-    uint8_t type = audio->getI2sPort();
-
-    if (type == 0)
-    {
-        audio->setPinout(13, 14, 12);
-        audio->setVolume(5); // 0...21
-    }
-    else if (type == 1)
-    {
-        audio->setPinout(27, 25, 26);
-        audio->setVolume(5); // 0...21
-    }
-    else
-    {
-        while (1)
-        {
-            _DELAY_MS(1000);
-        }
-    }
-   */
-
-    String mp3Name = "";
-    uint16_t mp3Value = 0;
-    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "剩餘可用內存%d\n", esp_get_free_heap_size());
-    while (1)
-    {
-
-        if (xQueueReceive(queuePCM5102, &mp3Name, 0) == pdPASS)
-        {
-            if (mp3Name == "")
-            {
-                SoundPlayerLevel[0] = 0;
-                audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
-            }
-            else
-            {
-                audio->connecttoFS(SD, mp3Name.c_str());
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%d\n", mp3Name.c_str());
-
-                audio->loop();
-            }
-        }
-        if (SoundPlayerLevel[0] != 0)
-        {
-            if (!audio->isRunning())
-            {
-                SoundPlayerLevel[0] = 0;
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放結束!等級歸0\n");
-            }
-        }
-        audio->loop();
-
-        if (xQueueReceive(queueDFPlayer, &mp3Value, 0) == pdPASS)
-        {
-            if (state)
-            {
-                myDFPlayer.disableLoop();
-                myDFPlayer.stop();
-                if (mp3Value != 0)
-                {
-                    myDFPlayer.play(mp3Value);
-                    myDFPlayer.enableLoop();
-                }
-            }
-        }
-        if (myDFPlayer.available())
-        {
-            printDetail(myDFPlayer.readType(), myDFPlayer.read()); // Print the detail message from DFPlayer to handle different errors and states.
-        }
-        vTaskDelay(2);
-    }
-}
 /**
  * @brief 計時器程式
  *
@@ -570,38 +467,76 @@ void taskWeaponLight(void *pvParam)
             // 充電動畫
         case 97:
         {
-            float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
-            int roundedNumber = round(number * 100);                    // 将浮点数乘以100后四舍五入为整数
-            float valBattery = roundedNumber / 100.0;                   // 将四舍五入后的整数除以100得到保留两位小数的浮点数
-            uint32_t timer = millis();
-            if (valBattery < 3)
+            const int intMax = 420, intMin = 300;
+            static int roundedNumber = 0;
+            static uint8_t intLevelBatter = 0;
+            static uint8_t intFlashTime = 0;
+            static uint8_t intONorOFF = 0;
+            // float valBattery = roundedNumber / 100.0;// 将四舍五入后的整数除以100得到保留两位小数的浮点数
+            // uint32_t timer = millis();
+            // uint8_t maxled = map(roundedNumber, intMin, intMax, 1, strip.numPixels());
+
+            intONorOFF++;
+            // 亮完一輪停一下
+            if (intFlashTime >= intLevelBatter)
             {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, 0);
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
+                if (intFlashTime == intLevelBatter)
+                {
+                    float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
+                    roundedNumber = round(number * 100);                        // 将浮点数乘以100后四舍五入为整数
+                    _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "讀取電池電量!%d,%d0 % \n", roundedNumber, intLevelBatter);
+                    intLevelBatter = map(min(max(roundedNumber, intMin), intMax), intMin, intMax, 1, 10);
+                    intFlashTime++;
+                }
+                if (intONorOFF < 20)
+                {
+                    ledcWrite(0, 0);
+                    ledcWrite(1, 0);
+                    ledcWrite(2, 0);
+                    ledcWrite(3, 0);
+                    for (uint16_t i = 0; i < strip.numPixels(); i++)
+                        strip.setPixelColor(i, 0);
+                }
+                else
+                {
+                    intONorOFF = 0;
+                    intFlashTime = 0;
+                }
             }
-            else if (valBattery > 3 && valBattery < 3.7)
-            {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
-                ledcWrite(2, 0);
-                ledcWrite(3, 0);
-            }
+            // 正常閃爍電量次數
             else
             {
-                ledcWrite(0, map(timer % 1000, 0, 1000, 0, limitPWM[0]));
-                ledcWrite(1, map(timer % 1000, 0, 1000, 0, limitPWM[1]));
-                ledcWrite(2, map(timer % 1000, 0, 1000, 0, limitPWM[2]));
-                ledcWrite(3, 0);
-            }
-
-            uint8_t maxled = map(valBattery * 100, 230, 420, 1, strip.numPixels());
-            for (uint16_t i = 0; i < strip.numPixels(); i++)
-            {
-                color = setRainbowRGB(map(valBattery * 100, 230, 420, 0, 1536));
-                color = setBrightnessRGB(color, maxled >= i ? map(timer % 1000, 0, 1000, 0, 125) : 0);
-                strip.setPixelColor(i, color);
+                if (intONorOFF < 3)
+                {
+                    if (intONorOFF == 1)
+                    {
+                        ledcWrite(0, limitPWM[0]);
+                        ledcWrite(1, limitPWM[1]);
+                        ledcWrite(2, limitPWM[2]);
+                        ledcWrite(3, limitPWM[3]);
+                        color = setRainbowRGB(map(min(max(roundedNumber, intMin), intMax), intMin, intMax, 0, 1536));
+                        color = setBrightnessRGB(color, 20);
+                        for (uint16_t i = 0; i < strip.numPixels(); i++)
+                            strip.setPixelColor(i, color);
+                    }
+                }
+                else if (intONorOFF >= 3 && intONorOFF < 9)
+                {
+                    if (intONorOFF == 3)
+                    {
+                        ledcWrite(0, 0);
+                        ledcWrite(1, 0);
+                        ledcWrite(2, 0);
+                        ledcWrite(3, 0);
+                        for (uint16_t i = 0; i < strip.numPixels(); i++)
+                            strip.setPixelColor(i, 0);
+                    }
+                }
+                else
+                {
+                    intONorOFF = 0;
+                    intFlashTime++;
+                }
             }
         }
         break;
@@ -685,11 +620,11 @@ void taskWeaponLight(void *pvParam)
         }
         break;
         }
-    if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
-    {
-        strip.show();
-        xSemaphoreGive(rmtMutex);
-    }
+        if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
+        {
+            strip.show();
+            xSemaphoreGive(rmtMutex);
+        }
         _DELAY_MS((*doc)["DelayTime"].as<uint16_t>());
         /**
          * @brief 每10秒送目前電池電壓值
@@ -698,7 +633,7 @@ void taskWeaponLight(void *pvParam)
         // _E2JS(_BATTERY_VAL) = roundf(analogRead(pinBattery) * 0.0017465437788018 * 100) / 100;
         if (millis() > batterTimer + 10000)
         {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "讀取電池電量!\n");
+
             if (socketIO_Client.isConnected())
             {
                 float number = analogRead(pinBattery) * 0.0017465437788018; // 假设这是你的浮点数值
