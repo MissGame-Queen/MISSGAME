@@ -1,28 +1,43 @@
 #include "task.h"
-QueueHandle_t queueJson = xQueueCreate(1, sizeof(String));
-QueueHandle_t queuePCM5102 = xQueueCreate(1, sizeof(String));
-QueueHandle_t queueMCP230x7_Input = xQueueCreate(1, sizeof(uint32_t));
-QueueHandle_t queueMCP230x7_Output = xQueueCreate(1, sizeof(uint32_t));
-SemaphoreHandle_t xMutex = xSemaphoreCreateMutex();
-String strAudio = "";
 void task(void *pvParam)
 {
-    const uint8_t mcpAddress[] = {0x27, 0x26, 0x25, 0x24};
+    enum stripType_Game_e
+    {
+        Standby = 1, // 待機狀態
+        Start = 2,   // 遊戲開始狀態
+        Correct = 4, // 步數正確
+        Mistake = 8, // 步數錯誤
+        Save = 16,   // 進度保存
+        Finish = 32, // 完成
+    };
+    JsonDocument doc;
+    JsonDocument *ptrDoc = &doc;
+
     const uint32_t pinInputMPC[12] = {mpcI_0_4, mpcI_0_7, mpcI_1_5, mpcI_1_4, mpcI_1_6, mpcI_0_3,
                                       mpcI_0_2, mpcI_0_1, mpcI_1_1, mpcI_1_3, mpcI_1_2, mpcI_0_6};
     const uint32_t pinOutputMPC[4]{mpcO_0_3, mpcO_0_2, mpcO_0_0, mpcO_0_1};
-    const uint32_t pinOutputMPC_MODE = mpcO_0_4;
-    const uint32_t pinOutputMPC_DoorS = mpcO_0_5;
-    const uint32_t pinOutputMPC_Door = mpcO_0_6;
-    const uint32_t pinOutputMPC_StoneR = mpcO_1_0;
-    const uint32_t pinOutputMPC_StoneL = mpcO_1_1;
-    const uint32_t pinOutputMPC_Stone_Water = mpcO_1_2;
-    const uint32_t pinInputMPC_DoorS_Remote = mpcI_3_0; // 改成線路控制
-    const uint32_t pinInputMPC_StoneR_Remote = mpcI_2_1;
-    const uint32_t pinInputMPC_StoneL_Remote = mpcI_2_2;
-    const uint32_t pinInputMPC_StoneRST_Remote = mpcI_2_3;
-    const uint32_t pinInputMPC_StoneR = mpcI_2_4;
-    const uint32_t pinInputMPC_StoneL = mpcI_2_5;
+
+    const uint32_t pinMPC_Output_MODE = mpcO_0_4;           // 模式燈
+    const uint32_t pinMPC_Output_DoorS = mpcO_0_5;          // 蜘蛛門
+    const uint32_t pinMPC_Output_Door = mpcO_0_6;           // 女神門
+    const uint32_t pinMPC_Output_StoneR = mpcO_1_0;         // R石像電源
+    const uint32_t pinMPC_Output_StoneL = mpcO_1_1;         // L石像電源
+    const uint32_t pinMPC_Output_Stone_Water = mpcO_1_2;    // 石像噴水訊號
+    const uint32_t pinMPC_Input_StoneR = mpcI_2_4;          // R石像輸入
+    const uint32_t pinMPC_Input_StoneL = mpcI_2_5;          // L石像輸入
+    const uint32_t pinMPC_Input_Remote_Mode = mpcI_3_0;     // 模式切換_遙控器
+    const uint32_t pinMPC_Input_Remote_Door = mpcI_3_1;     // 女神門_遙控器
+    const uint32_t pinMPC_Input_Remote_DoorS = mpcI_3_2;    // 蜘蛛門_遙控器
+    const uint32_t pinMPC_Input_Remote_StoneR = mpcI_3_4;   // R石像啟動_遙控器
+    const uint32_t pinMPC_Input_Remote_StoneL = mpcI_3_5;   // L石像啟動_遙控器
+    const uint32_t pinMPC_Input_Remote_StoneRST = mpcI_3_6; // 石像重置_遙控器
+                                                            /*
+                                                                const uint32_t pinMPC_Input_Remote_DoorS = mpcI_3_0;    // 蜘蛛門_遙控器
+                                                                const uint32_t pinMPC_Input_Remote_StoneR = mpcI_2_1;   // R石像啟動_遙控器
+                                                                const uint32_t pinMPC_Input_Remote_StoneL = mpcI_2_2;   // L石像啟動_遙控器
+                                                                const uint32_t pinMPC_Input_Remote_StoneRST = mpcI_2_3; // 石像重置_遙控器
+                                                            */
+
     bool havelock_Door = false;
     bool havelock_DoorS = true;
     bool isONStoneR = false;
@@ -86,19 +101,21 @@ void task(void *pvParam)
         if (dataInputLast_8t != dataInput_8t)
         {
             _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "輸入:%02x!\n", dataInput_8t);
-            if ((dataInput_8t & 1) && !(dataInputLast_8t & 1))
-            {
-                dataOutput_32t = dataOutput_32t | pinOutputMPC_MODE;
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "流亡模式!%02X\n", dataOutput_32t);
-                stepGame = 0;
-            }
-            else if (!(dataInput_8t & 1) && (dataInputLast_8t & 1))
-            {
-                dataOutput_32t = dataOutput_32t & (~(pinOutputMPC_MODE));
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "奇術模式!%02X\n", dataOutput_32t);
-                stepGame = 0;
-            }
 
+            /*
+                        if ((dataInput_8t & 1) && !(dataInputLast_8t & 1))
+                        {
+                            dataOutput_32t = dataOutput_32t | pinMPC_Output_MODE;
+                            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "流亡模式!%02X\n", dataOutput_32t);
+                            stepGame = 0;
+                        }
+                        else if (!(dataInput_8t & 1) && (dataInputLast_8t & 1))
+                        {
+                            dataOutput_32t = dataOutput_32t & (~(pinMPC_Output_MODE));
+                            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "奇術模式!%02X\n", dataOutput_32t);
+                            stepGame = 0;
+                        }
+            */
             dataInputLast_8t = dataInput_8t;
         }
 
@@ -186,8 +203,9 @@ void task(void *pvParam)
                 {
                     first = !first;
                     timer = millis();
-                    strAudio = "{\"name\": \"/流亡_女神門開.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+
+                    doc["I2S"]["name"] = "/流亡_女神門開.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                     havelock_Door = true;
 
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "女神門開!%d\n", timer);
@@ -205,14 +223,15 @@ void task(void *pvParam)
             {
                 if (isCorrect)
                 {
-                    strAudio = "{\"name\": \"/流亡_踩對符號.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/流亡_踩對符號.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                     isCorrect = false;
                 }
                 else if ((dataInputLast_32t & 0xFFFF) < (dataInput_32t & 0xFFFF))
                 {
-                    strAudio = "{\"name\": \"/流亡_踩地板.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/流亡_踩地板.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%08x!\n", dataInput_32t);
                 }
             }
@@ -277,8 +296,9 @@ void task(void *pvParam)
                 {
                     first = !first;
                     timer = millis();
-                    strAudio = "{\"name\": \"/奇術_踩對行星順序.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/奇術_踩對行星順序.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "正確答案!%d\n", timer);
                 }
                 if (millis() > timer + 5000)
@@ -296,8 +316,8 @@ void task(void *pvParam)
                 {
                     first = !first;
                     timer = millis();
-                    strAudio = "{\"name\": \"/奇術_蜘蛛門開.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/奇術_蜘蛛門開.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                     havelock_DoorS = false;
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "蜘蛛門開!%d\n", timer);
                 }
@@ -314,27 +334,28 @@ void task(void *pvParam)
             {
                 if (isCorrect)
                 {
-                    strAudio = "{\"name\": \"/流亡_踩地板.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/流亡_踩地板.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                     isCorrect = false;
                 }
                 else if (!(dataInput_32t & ansGame2Value) && (dataInputLast_32t & 0xFFFF) < (dataInput_32t & 0xFFFF))
                 {
-                    strAudio = "{\"name\": \"/奇術_踩錯行星順序.mp3\"}";
-                    xQueueSend(queuePCM5102, &strAudio, portMAX_DELAY);
+                    doc["I2S"]["name"] = "/奇術_踩錯行星順序.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%08x!\n", dataInput_32t);
                     stepGame = 0;
                 }
             }
             // 如果左右石像同時有東西
 
-            if (dataInput_32t & pinInputMPC_StoneR && dataInput_32t & pinInputMPC_StoneL && valStone < 100)
+            if (dataInput_32t & pinMPC_Input_StoneR && dataInput_32t & pinMPC_Input_StoneL && valStone < 100)
             {
                 isONStoneWater = true;
                 valStone++;
             }
             // 如果有人中途拿出來
-            else if ((!(dataInput_32t & pinInputMPC_StoneR) || !(dataInput_32t & pinInputMPC_StoneL)) && valStone < 100)
+            else if ((!(dataInput_32t & pinMPC_Input_StoneR) || !(dataInput_32t & pinMPC_Input_StoneL)) && valStone < 100)
             {
                 isONStoneWater = false;
             }
@@ -355,20 +376,62 @@ void task(void *pvParam)
             }
         }
         //[ ]遙控器
-        // 如果按下蜘蛛門
-        if (dataInput_32t & pinInputMPC_DoorS_Remote)
+
+        // 如果模式訊號被觸發
+        if ((~dataInput_32t) & pinMPC_Input_Remote_Mode && !((~dataInputLast_32t) & pinMPC_Input_Remote_Mode))
         {
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_DoorS);
+            dataOutput_32t = dataOutput_32t | pinMPC_Output_MODE;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "流亡模式!%02X\n", dataOutput_32t);
+            stepGame = 0;
+            first = true;
+        }
+        else if (!((~dataInput_32t) & pinMPC_Input_Remote_Mode) && (~dataInputLast_32t) & pinMPC_Input_Remote_Mode)
+        {
+            dataOutput_32t = dataOutput_32t & (~(pinMPC_Output_MODE));
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "奇術模式!%02X\n", dataOutput_32t);
+            stepGame = 0;
+            first = true;
+        }
+
+        if ((~dataInput_32t) & pinMPC_Input_Remote_DoorS)
+        {
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_DoorS);
         }
         else
         {
             if (havelock_DoorS)
-                dataOutput_32t = dataOutput_32t | (pinOutputMPC_DoorS);
+                dataOutput_32t = dataOutput_32t | (pinMPC_Output_DoorS);
             else
-                dataOutput_32t = dataOutput_32t & (~pinOutputMPC_DoorS);
+                dataOutput_32t = dataOutput_32t & (~pinMPC_Output_DoorS);
         }
+        // 如果按下蜘蛛門
+        if ((~dataInput_32t) & pinMPC_Input_Remote_DoorS)
+        {
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_DoorS);
+        }
+        else
+        {
+            if (havelock_DoorS)
+                dataOutput_32t = dataOutput_32t | (pinMPC_Output_DoorS);
+            else
+                dataOutput_32t = dataOutput_32t & (~pinMPC_Output_DoorS);
+        }
+
+        // 如果按下女神門
+        if ((~dataInput_32t) & pinMPC_Input_Remote_Door)
+        {
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_Door);
+        }
+        else
+        {
+            if (havelock_Door)
+                dataOutput_32t = dataOutput_32t | (pinMPC_Output_Door);
+            else
+                dataOutput_32t = dataOutput_32t & (~pinMPC_Output_Door);
+        }
+
         // 如果RST石像
-        if (dataInput_32t & pinInputMPC_StoneRST_Remote)
+        if ((~dataInput_32t) & pinMPC_Input_Remote_StoneRST)
         {
             isONStoneR = false;
             isONStoneL = false;
@@ -376,197 +439,38 @@ void task(void *pvParam)
         else
         {
             // 如果開啟右石像
-            if (dataInput_32t & pinInputMPC_StoneR_Remote)
+            if ((~dataInput_32t) & pinMPC_Input_Remote_StoneR)
                 isONStoneR = true;
             // 如果開啟左石像
-            if (dataInput_32t & pinInputMPC_StoneL_Remote)
+            if ((~dataInput_32t) & pinMPC_Input_Remote_StoneL)
                 isONStoneL = true;
         }
-        // 依變數變更輸出
-        // 女神門
-        if (havelock_Door)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_Door);
-        else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_Door);
+
         // 右石像
         if (isONStoneR)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_StoneR);
+            dataOutput_32t = dataOutput_32t | (pinMPC_Output_StoneR);
         else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_StoneR);
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_StoneR);
         // 左石像
         if (isONStoneL)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_StoneL);
+            dataOutput_32t = dataOutput_32t | (pinMPC_Output_StoneL);
         else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_StoneL);
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_StoneL);
         // 石像噴水
         if (isONStoneWater)
-            dataOutput_32t = dataOutput_32t | (pinOutputMPC_Stone_Water);
+            dataOutput_32t = dataOutput_32t | (pinMPC_Output_Stone_Water);
         else
-            dataOutput_32t = dataOutput_32t & (~pinOutputMPC_Stone_Water);
+            dataOutput_32t = dataOutput_32t & (~pinMPC_Output_Stone_Water);
 
         dataInputLast_32t = dataInput_32t;
 
-        strip.show();
+        if (xSemaphoreTake(rmtMutex, portMAX_DELAY))
+        {
+            strip.show();
+            _DELAY_MS(1);
+            xSemaphoreGive(rmtMutex);
+        }
+
         _DELAY_MS(100);
-    }
-}
-void taskMCP230x7(void *pvParam)
-{
-    const uint8_t mcpAddress[] = {0x27, 0x26, 0x25, 0x24};
-    Adafruit_MCP23X17 mcp[4];
-    // 初始化
-    bool isInit = true;
-    for (uint8_t i = 0; i < sizeof(mcp) / sizeof(mcp[0]); i++)
-    {
-        if (!mcp[i].begin_I2C(mcpAddress[i]))
-            isInit = false;
-        for (uint8_t j = 0; j < 8; j++)
-        {
-            _DELAY_MS(1);
-            mcp[i].pinMode(j, OUTPUT);
-        }
-        _DELAY_MS(1);
-    }
-    // 如果初始化失敗
-    if (!isInit)
-    {
-        while (1)
-        {
-            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "MCP連線失敗!\n");
-            _DELAY_MS(1000);
-        }
-    }
-    else
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "MCP連線成功!\n");
-    uint32_t dataInput_32t = 0, dataOutput_32t = 0;
-    while (1)
-    {
-        // 如果收到寫入封包
-        if (xQueueReceive(queueMCP230x7_Output, &dataOutput_32t, 0) == pdPASS)
-        {
-            for (uint8_t i = 0; i < sizeof(mcp) / sizeof(mcp[0]); i++)
-            {
-                uint8_t dataBit = (dataOutput_32t >> (i * 8)) & 0xFF;
-                for (uint8_t j = 0; j < 8; j++)
-                {
-                    mcp[i].digitalWrite(j, (dataBit & (1 << j)) > 0 ? 1 : 0);
-                    // mcp[i].writeGPIO(/*(data >> (i * 8)) &*/ 0xFF, 0);
-                    _DELAY_MS(1);
-                }
-            }
-        }
-        // 定期輪詢所有Input，若與上次不同則發送結果
-        static uint32_t timer = millis();
-        static uint32_t dataInputLast_32t = 0;
-        if (millis() > timer + 100)
-        {
-            dataInput_32t = 0;
-            for (uint8_t i = 0; i < sizeof(mcp) / sizeof(mcp[0]); i++)
-            {
-                uint8_t dataBit = mcp[i].readGPIOB() ^ 0xFF;
-                dataInput_32t += dataBit << (i * 8);
-                //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "%d=%d\n", i, dataRead[i]);
-                _DELAY_MS(1);
-            }
-            if (dataInputLast_32t != dataInput_32t)
-            {
-                xQueueSend(queueMCP230x7_Input, &dataInput_32t, portMAX_DELAY);
-                dataInputLast_32t = dataInput_32t;
-            }
-            timer = millis();
-        }
-        _DELAY_MS(10);
-    }
-}
-
-void taskPCM5102(void *pvParam)
-{
-    DFRobotDFPlayerMini myDFPlayer;
-    uint8_t SoundPlayerLevel[2] = {0, 0};
-    Serial2.begin(9600);
-    bool state = false;
-    state = myDFPlayer.begin(Serial2, /*isACK = */ true, /*doReset = */ true);
-
-    if (state)
-    {
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 已連線\n");
-        myDFPlayer.setTimeOut(500); // Set serial communictaion time out 500ms
-        myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-        myDFPlayer.volume(30);
-    }
-    else
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DFPlayer Mini 連線失敗!\n1.請重新檢查連線！\n2.請插入SD卡！\n");
-    if (!SD.begin(5))
-        Serial.println("SD卡發生錯誤");
-    else
-        Serial.println("SD卡正常!!");
-
-    // Audio *audio = (Audio *)pvParam;
-    Audio *audio = new Audio(false, I2S_DAC_CHANNEL_DISABLE, I2S_NUM_1);
-    audio->setPinout(pinBCLK, pinLRC, pinDOUT);
-    audio->setVolume(21); // 0...21
-
-    String StrJson = "";
-    JsonDocument doc;
-    while (1)
-    {
-        if (xQueueReceive(queuePCM5102, &StrJson, 0) == pdPASS)
-        {
-            DeserializationError error = deserializeJson(doc, StrJson);
-            if (error)
-            {
-                //_CONSOLE_PRINTF(_PRINT_LEVEL_WARNING, "反序列化失敗:%s\n", error.c_str());
-                //_CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, StrJson);
-            }
-            else
-            {
-                if (doc.containsKey("name"))
-                {
-                    if (doc["name"] == "")
-                    {
-                        SoundPlayerLevel[0] = 0;
-                        audio->connecttoFS(SD, "/SYSTEM/stop.mp3");
-                        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "停止音樂!%d\n", SoundPlayerLevel[0]);
-                    }
-                    else
-                    {
-                        //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放音樂!%s\n", doc["name"].as<String>().c_str());
-                        audio->connecttoFS(SD, doc["name"].as<String>().c_str());
-                        audio->loop();
-                    }
-                }
-                if (doc.containsKey("value") && state)
-                {
-                    myDFPlayer.disableLoop();
-                    myDFPlayer.stop();
-                    uint16_t mp3Value = doc["value"].as<uint16_t>();
-                    if (mp3Value != 0)
-                    {
-                        myDFPlayer.play(mp3Value);
-                        // myDFPlayer.enableLoop();
-                    }
-                    if (myDFPlayer.available())
-                    {
-                        // printDetail(myDFPlayer.readType(), myDFPlayer.read()); // Print the detail message from DFPlayer to handle different errors and states.
-                    }
-                }
-            }
-        }
-        if (SoundPlayerLevel[0] != 0)
-        {
-            if (!audio->isRunning())
-            {
-                SoundPlayerLevel[0] = 0;
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "播放結束!等級歸0\n");
-            }
-        }
-        if (xSemaphoreTake(xMutex, portMAX_DELAY))
-        {
-            audio->loop();
-
-            _DELAY_MS(1);
-            xSemaphoreGive(xMutex);
-        }
-        vTaskDelay(3);
     }
 }

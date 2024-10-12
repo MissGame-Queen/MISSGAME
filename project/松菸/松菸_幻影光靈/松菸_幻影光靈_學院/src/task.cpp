@@ -299,7 +299,7 @@ void taskWeaponLight(void *pvParam)
 
     JsonDocument *doc = (JsonDocument *)pvParam;
     const uint8_t pinOut[]{25, 26, 27, 33};
-    const uint8_t pinCHG = 5;
+    const uint8_t pinCHG = 5, pinCHG_Invert = 4;
     const uint8_t pinBattery = 32;
     for (size_t i = 0; i < sizeof(pinOut); i++)
     {
@@ -308,6 +308,7 @@ void taskWeaponLight(void *pvParam)
         ledcWrite(i, 0);
     }
     pinMode(pinCHG, INPUT_PULLUP);
+    pinMode(pinCHG_Invert, INPUT_PULLDOWN);
     Adafruit_NeoPixel strip((*doc).containsKey("Length") ? (*doc)["Length"] : 11,
                             (*doc).containsKey("Pin") ? (*doc)["Pin"] : 15,
                             NEO_GRB + NEO_KHZ800);
@@ -390,7 +391,7 @@ void taskWeaponLight(void *pvParam)
  30~39 杖
  40~49 矛
  50~59 錘
- 60~69 鞭
+ 60~69 鍊
  70~79 劍
  80~89 斧
  */
@@ -658,14 +659,14 @@ void taskWeaponLight(void *pvParam)
         }
         if (level != 97)
         {
-            if (!digitalRead(pinCHG))
+            if (!digitalRead(pinCHG)||digitalRead(pinCHG_Invert))
             {
                 const uint8_t level = 97;
                 xQueueSend(queueWeaponLight, &level, portMAX_DELAY);
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "充電模式!\n");
             }
         }
-        else if (digitalRead(pinCHG))
+        else if (digitalRead(pinCHG)&&!digitalRead(pinCHG_Invert))
         {
             const uint8_t level = 0;
             xQueueSend(queueWeaponLight, &level, portMAX_DELAY);

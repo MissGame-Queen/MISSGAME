@@ -1,6 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
-#include <Template.h>
+//#include <Template.h>
+#include <MissGame.h>
+
 #include "test.h"
 #include "task.h"
 #define _E2JS(x) (*Template_JsonPTC->getJsonObject())[#x]["Value"]

@@ -38,6 +38,7 @@
         "tasktemplate.h": "c",
         "audio.h": "c",
         "myfunction.h": "c",
-        "init.h": "c"
+        "init.h": "c",
+        "missgame.h": "c"
     }
 }
