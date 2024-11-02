@@ -14,6 +14,7 @@ extern QueueHandle_t queueJson;
 extern QueueHandle_t queueTimer;
 extern QueueHandle_t queueDFPlayer;
 extern QueueHandle_t queueBallTime;
+extern QueueHandle_t queueBallShakeTime;
 extern QueueHandle_t queueWeaponLight;
 extern QueueHandle_t queueLINE_POST;
 typedef struct CRC16_parameter_t

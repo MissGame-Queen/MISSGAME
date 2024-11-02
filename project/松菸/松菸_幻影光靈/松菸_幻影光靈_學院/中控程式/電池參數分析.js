@@ -28,10 +28,14 @@ try {
         variableTable.name["GV_武器電量_整理前"]?.save("value", JSON.stringify(arr));
 
         let strOUT="";
+        let arrSorting=[];
         arr.forEach(element => {
+            arrSorting.push(element);
             strOUT+=`ID:${element.id}的電池電壓為${element.battery}V\n`
         });
-        variableTable.name["GV_武器電量"]?.save("value", strOUT);
+        //variableTable.name["GV_武器電量"]?.save("value", strOUT);
+        arrSorting.sort((a, b) => a.battery - b.battery);
+        variableTable.name["GV_武器電量"]?.save("value", JSON.stringify(arrSorting));
     
     }
 } catch (error) {

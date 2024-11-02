@@ -15,7 +15,6 @@ void taskOuijaBoard(void *pvParam)
         _3,
         _4,
         _COMPLETED,
-        _PLAYSOUND,
         _FINISH,
         _SAVERFID,
         _DEBUG,
@@ -31,15 +30,20 @@ void taskOuijaBoard(void *pvParam)
     const JsonDocument *ptrDoc = &doc;
 
     const uint32_t pinMCP_Ooutout_SmallDoor = (1 << 0);
-    const uint32_t pinMCP_Ooutout_NextDoor = (1 << 1);
+    const uint32_t pinMCP_Ooutout_NextDoor = (1 << 4);
     const uint32_t pinMCP_Ooutout_Lingth = (1 << 2);
+    const uint32_t pinMCP_Ooutout_MirrorLingth = (1 << 3);
     const uint32_t pinMCP_Ooutout_Sound = (1 << 7);
-    const uint32_t pinMCP_Input_Step = (1 << 0);
-    const uint32_t pinMCP_Input_RE = (1 << 1);
-    const uint32_t pinMCP_Input_SaveRFID = (1 << 2);
-    const uint32_t pinMCP_Input_Remote_Step = (1 << 4);
-    const uint32_t pinMCP_Input_Remote_RE = (1 << 5);
-    const uint32_t pinMCP_Input_Remote_SaveRFID = (1 << 6);
+    /*
+    const uint32_t pinMCP_Input_Completed = (1 << 0);
+    const uint32_t pinMCP_Input_Step = (1 << 1);
+    const uint32_t pinMCP_Input_RE = (1 << 2);
+    const uint32_t pinMCP_Input_SaveRFID = (1 << 3);
+    */
+    const uint32_t pinMCP_Input_Remot_Completed = (1 << 0);
+    const uint32_t pinMCP_Input_Remote_Step = (1 << 1);
+    const uint32_t pinMCP_Input_Remote_RE = (1 << 2);
+    const uint32_t pinMCP_Input_Remote_SaveRFID = (1 << 3);
     // 32_t pinMCP_Input_Remote_Sound = (1 << 1);
 
     bool isFlash = false;
@@ -158,13 +162,12 @@ void taskOuijaBoard(void *pvParam)
         }
 
         //[ ]遊戲流程
-
         switch (stepGame)
         {
         case _Reset:
         {
-            doc["Serial"]["value"] = 0;
-            doc["Serial"]["loop"] = false;
+            doc["Serial"]["value"] = 3;
+            doc["Serial"]["loop"] = true;
             doc["I2S"]["name"] = "";
             xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
             digitalWrite(pinLED, 0);
@@ -176,6 +179,8 @@ void taskOuijaBoard(void *pvParam)
             dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_SmallDoor;
             dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_NextDoor;
             dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
+            dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Lingth;
+            dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_MirrorLingth;
         }
         break;
         case _1:
@@ -273,43 +278,56 @@ void taskOuijaBoard(void *pvParam)
         break;
         case _COMPLETED:
         {
+            static uint32_t timerDigitlSound = 0;
+            static uint32_t timerDigitlSound_Long = 0;
             if (first)
             {
                 digitalWrite(pinLED, 0);
+                doc["Serial"]["value"] = 1;
+                doc["Serial"]["loop"] = true;
+                doc["I2S"]["name"] = "";
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
                 isFlash = true;
-                doc["Serial"]["value"] = 1;
-                doc["Serial"]["loop"] = false;
-                // doc["I2S"]["name"] = "/mp3/0001通靈板成功.mp3";
-                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_SmallDoor);
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_Sound);
+                timerDigitlSound = millis();
+                timerDigitlSound_Long = millis();
+            }
+            if (timerDigitlSound != 0 && millis() > timerDigitlSound + 500)
+            {
+                timerDigitlSound = 0;
+                dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
+            }
+            if (timerDigitlSound_Long != 0 && millis() > timerDigitlSound_Long + 10000)
+            {
+                timerDigitlSound_Long = 0;
+                doc["Serial"]["value"] = 3;
+                doc["Serial"]["loop"] = true;
+                doc["I2S"]["name"] = "";
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
             }
         }
         break;
-        case _PLAYSOUND:
+        case _FINISH:
         {
             static uint32_t timer = 0;
             if (first)
             {
+                doc["Serial"]["value"] = 2;
+                doc["Serial"]["loop"] = false;
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
-                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_Sound);
-
+                isFlash = false;
+                 dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_Lingth);
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_MirrorLingth);
                 timer = millis();
             }
-            if (timer != 0 && millis() > timer + 500)
+            if (timer != 0 && millis() > timer + 20000)
             {
                 timer = 0;
-                dataOutput_32t = dataOutput_32t | pinMCP_Ooutout_Sound;
-            }
-        }
-        case _FINISH:
-        {
-            if (first)
-            {
-                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
-                first = false;
                 dataOutput_32t = dataOutput_32t & (~pinMCP_Ooutout_NextDoor);
             }
         }
@@ -323,9 +341,8 @@ void taskOuijaBoard(void *pvParam)
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
                 // doc["I2S"]["name"] = "/mp3/燒錄模式.mp3";
-                doc["Serial"]["value"] = 3;
+                doc["Serial"]["value"] = 4;
                 doc["Serial"]["loop"] = false;
-                // doc["I2S"]["name"] = "/mp3/0001通靈板成功.mp3";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 ONscanning = true;
                 timer = 0;
@@ -392,7 +409,7 @@ void taskOuijaBoard(void *pvParam)
                                 file.close();
                             }
                             // doc["I2S"]["name"] = "/mp3/燒錄成功.mp3";
-                            doc["Serial"]["value"] = 4;
+                            doc["Serial"]["value"] = 5;
                             doc["Serial"]["loop"] = false;
                             xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                             _DELAY_MS(3000);
@@ -431,7 +448,7 @@ void taskOuijaBoard(void *pvParam)
         */
         // 如果按下跳關鍵
         if ((~dataInput_32t) & pinMCP_Input_Remote_Step ||
-            dataInput_8t & pinMCP_Input_Step)
+            dataInput_8t & pinMCP_Input_Remote_Step)
         {
             static uint32_t timer = 0;
             if (millis() > timer + 3000)
@@ -441,7 +458,6 @@ void taskOuijaBoard(void *pvParam)
                 switch (stepGame)
                 {
                 case _COMPLETED:
-                case _PLAYSOUND:
                     stepGame++;
                     break;
                 case _FINISH:
@@ -455,7 +471,7 @@ void taskOuijaBoard(void *pvParam)
         }
         // 如果按下RE鍵
         if ((~dataInput_32t) & pinMCP_Input_Remote_RE ||
-            dataInput_8t & pinMCP_Input_RE)
+            dataInput_8t & pinMCP_Input_Remote_RE)
         {
             static uint32_t timer = 0;
             if (millis() > timer + 3000)
@@ -465,11 +481,23 @@ void taskOuijaBoard(void *pvParam)
                 first = true;
             }
         }
+        // 如果按下完成鍵
+        if ((~dataInput_32t) & pinMCP_Input_Remot_Completed||
+            dataInput_8t & pinMCP_Input_Remot_Completed)
+        {
+            static uint32_t timer = 0;
+            if (millis() > timer + 3000)
+            {
+                timer = millis();
+                stepGame = _COMPLETED;
+                first = true;
+            }
+        }
         dataInputLast_32t = dataInput_32t;
         static uint32_t timer_SaveRFID = 0;
         // 如果按下SaveRFID鍵
         if (0 == timer_SaveRFID && (~dataInput_32t) & pinMCP_Input_Remote_SaveRFID ||
-            dataInput_8t & pinMCP_Input_SaveRFID)
+            dataInput_8t & pinMCP_Input_Remote_SaveRFID)
         {
             static uint32_t timer = 0;
             if (millis() > timer + 3000)
@@ -482,7 +510,7 @@ void taskOuijaBoard(void *pvParam)
         else if (0 != timer_SaveRFID && millis() > timer_SaveRFID + 3000)
         {
             timer_SaveRFID = 0;
-            if (((~dataInput_32t) & pinMCP_Input_Remote_SaveRFID || dataInput_8t & pinMCP_Input_SaveRFID))
+            if (((~dataInput_32t) & pinMCP_Input_Remote_SaveRFID || dataInput_8t & pinMCP_Input_Remote_SaveRFID))
             {
                 stepGame = _SAVERFID;
                 first = true;
@@ -490,7 +518,7 @@ void taskOuijaBoard(void *pvParam)
         }
         dataInputLast_32t = dataInput_32t;
         //[ ]燈光閃爍
-        if (isFlash)
+        if (isFlash )
         {
             static bool ledONOFF = true;
             static uint32_t timer = 0, timerCheck = 0;
@@ -522,7 +550,7 @@ void taskOuijaBoard(void *pvParam)
  */
 void task4SequenceButtons(void *pvParam)
 {
-    bool isOld = true;
+    bool isOld = false;
     enum Status_e
     {
         _Reset,
@@ -538,10 +566,7 @@ void task4SequenceButtons(void *pvParam)
         36,
         39,
         34,
-        35,
-        12,
-        13,
-    };
+        35, 12, 13};
     const uint8_t pinLED = 2;
     uint8_t stepGame = 0;
     bool first = true;
@@ -659,11 +684,11 @@ void task4SequenceButtons(void *pvParam)
                 if (isOld)
                     doc["I2S"]["name"] = "/mp3/0006按鈕按壓.mp3";
                 // 若按下按鈕則播放音樂
-                else if (ansValue_8t == pinMCP_Input_Button[0] ||
-                         ansValue_32t == pinMCP_Input_Button[0])
-                    doc["I2S"]["name"] = "/mp3/0001喜按鈕.mp3";
                 else if (ansValue_8t == pinMCP_Input_Button[1] ||
                          ansValue_32t == pinMCP_Input_Button[1])
+                    doc["I2S"]["name"] = "/mp3/0001喜按鈕.mp3";
+                else if (ansValue_8t == pinMCP_Input_Button[0] ||
+                         ansValue_32t == pinMCP_Input_Button[0])
                     doc["I2S"]["name"] = "/mp3/0002怒按鈕.mp3";
                 else if (ansValue_8t == pinMCP_Input_Button[2] ||
                          ansValue_32t == pinMCP_Input_Button[2])
@@ -705,7 +730,7 @@ void task4SequenceButtons(void *pvParam)
             static uint32_t timer = 0;
             if (first)
             {
-                _DELAY_MS(2000);
+                _DELAY_MS(1000);
                 if (isOld)
                     doc["I2S"]["name"] = "/mp3/0007成功.mp3";
                 else
@@ -775,40 +800,59 @@ void task4SequenceButtons(void *pvParam)
 void task()
 {
     const uint8_t pinColor[] = {11, 13, 12};
-    const uint8_t pinInput = 5;
-
+    const uint8_t pinInput[2] = {5, 4};
+    const bool onSide = 1;
     Serial.begin(115200);
-    delay(3000); // 用來等待上傳用
     for (uint8_t i = 0; i < 3; i++)
     {
         pinMode(pinColor[i], OUTPUT);
-        digitalWrite(pinColor[i], 1);
+        digitalWrite(pinColor[i], !onSide);
     }
-    pinMode(pinInput, INPUT);
+    delay(3000); // 用來等待上傳用
 
-    uint8_t stateLED = 1;
+    for (uint8_t i = 0; i < 2; i++)
+    {
+        pinMode(pinInput[i], INPUT);
+    }
+
+    uint8_t stateLED = 0;
     bool swState = false;
     uint16_t cycleONOFF = 0;
     bool isChange = false;
+    bool isSetLingth = false;
     const uint8_t timeON = 10, timeOFF = 10;
     uint32_t timer = 0;
     while (true)
     {
-        if (digitalRead(pinInput) && !swState)
+        bool onSwitch = digitalRead(pinInput[0]);
+        bool offSwitch = digitalRead(pinInput[1]);
+        if (offSwitch)
+        {
+            stateLED = 0;
+            swState = false;
+            isSetLingth = true;
+        }
+        else if (isSetLingth && !onSwitch)
+        {
+            isSetLingth = false;
+        }
+        else if (onSwitch && !swState && !isSetLingth)
         {
             swState = true;
             timer = millis();
+        } // 若按了3秒以上關閉LED
+        else if (swState && stateLED != 0 && millis() > timer + 1500)
+        {
+            stateLED = 0;
+            swState = false;
+            isSetLingth = true;
         }
-        else if (!digitalRead(pinInput) && swState)
+        // 若原本是開啟狀態則變為閃爍
+        else if (!onSwitch && swState)
         {
             swState = false;
-            // 若按了3秒以上關閉LED
-            if (millis() > timer + 1500)
-            {
-                stateLED = 0;
-                // 若原本是開啟狀態則變為閃爍
-            }
-            else if (stateLED == 1)
+            isSetLingth = true;
+            if (stateLED == 1)
             {
                 stateLED = 2;
                 // 默認開啟LED
@@ -824,38 +868,38 @@ void task()
 
         if (stateLED == 1 && !isChange)
         {
-            digitalWrite(pinColor[0], 0);
-            digitalWrite(pinColor[1], 0);
-            digitalWrite(pinColor[2], 0);
+            digitalWrite(pinColor[0], onSide);
+            digitalWrite(pinColor[1], onSide);
+            digitalWrite(pinColor[2], onSide);
 
-            Serial.println("ON");
+            // Serial.println("ON");
             isChange = true;
         }
         else if (stateLED == 0 && !isChange)
         {
-            digitalWrite(pinColor[0], 1);
-            digitalWrite(pinColor[1], 1);
-            digitalWrite(pinColor[2], 1);
+            digitalWrite(pinColor[0], !onSide);
+            digitalWrite(pinColor[1], !onSide);
+            digitalWrite(pinColor[2], !onSide);
 
-            Serial.println("OFF");
+            // Serial.println("OFF");
             isChange = true;
         }
         else
         {
             if (cycleONOFF < timeON && !isChange)
             {
-                Serial.println("AOUT ON");
-                digitalWrite(pinColor[0], 1);
-                digitalWrite(pinColor[1], 1);
-                digitalWrite(pinColor[2], 1);
+                // Serial.println("AOUT ON");
+                digitalWrite(pinColor[0], onSide);
+                digitalWrite(pinColor[1], onSide);
+                digitalWrite(pinColor[2], onSide);
                 isChange = true;
             }
             else if (cycleONOFF > timeON && cycleONOFF < (timeON + timeOFF) && !isChange)
             {
-                Serial.println("AOUT OFF");
-                digitalWrite(pinColor[0], 0);
-                digitalWrite(pinColor[1], 0);
-                digitalWrite(pinColor[2], 0);
+                // Serial.println("AOUT OFF");
+                digitalWrite(pinColor[0], !onSide);
+                digitalWrite(pinColor[1], !onSide);
+                digitalWrite(pinColor[2], !onSide);
 
                 isChange = true;
             }
@@ -870,3 +914,344 @@ void task()
         delay(10);
     }
 }
+
+
+#define _TYPE 1
+
+#if _TYPE == 0
+#include <W600WiFi.h>
+#endif
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <DFRobotDFPlayerMini.h>
+#include <SoftwareSerial.h>
+//0:主控,1:從機
+
+//"192.168.0.8:1833"
+#define _MQTT_IPPORT "192.168.1.124:1833"
+//"MissGAME_SOG"
+#define _WIFI_SSID "MissGame_B2"
+#define _WIFI_PASSWORD "missgame"
+#define _MODULE_ID "100"
+
+String clientId = "Lantern_" + String(_MODULE_ID);
+const uint8_t pinColor[] = { 11, 13, 12 };
+const bool onSide = 1;
+const uint8_t pinOutput[] = { 5, 6 };
+const uint8_t pinInput[] = { 4, 7, 8, 9 };
+const uint8_t pinSoftwareSerial_RX = 2;
+const uint8_t pinSoftwareSerial_TX = 3;
+SoftwareSerial Player_Serial(pinSoftwareSerial_RX, pinSoftwareSerial_TX);
+DFRobotDFPlayerMini myDFPlayer;
+uint8_t intLingth = 0;
+//uint8_t intShock = 0;
+//uint8_t intSound = 0;
+void myCMD(JsonObject *ptrObj) {
+  JsonObject obj = (*ptrObj);
+  serializeJsonPretty(obj, Serial);
+  //燈光控制
+  if (!obj["lingth"].isNull()) {
+    uint16_t value = obj["lingth"].as<uint16_t>();
+    Serial.print("燈光變更為:");
+    Serial.println(value);
+    intLingth = value;
+  }
+  //震動控制
+  if (!obj["shock"].isNull()) {
+    bool value = obj["shock"].as<bool>();
+    Serial.print("震動變更為:");
+    Serial.println(value);
+    value ? digitalWrite(pinOutput[1], 1) : digitalWrite(pinOutput[1], 0);
+    //intShock = value;
+  }
+  //音效控制
+  if (!obj["sound"].isNull()) {
+    if (!obj["sound"]["value"].isNull()) {
+      uint16_t value = obj["sound"]["value"].as<uint16_t>();
+      Serial.print("音效播放:");
+      Serial.println(value);
+      if (obj["sound"]["loop"].isNull() || !obj["sound"]["loop"].as<bool>()) {
+        myDFPlayer.play(value);
+        delay(20);
+      } else {
+        myDFPlayer.loop(value);
+      }
+      delay(20);
+    }
+    if (!obj["sound"]["volume"].isNull()) {
+      myDFPlayer.volume(obj["sound"]["volume"].as<uint8_t>());
+      delay(20);
+    }
+
+    //intSound = value;
+    //myDFPlayer.loop(mp3Value);
+  }
+}
+void Lingth(uint8_t value) {
+  static uint8_t lastvalue = 0;
+  static uint32_t timer = 0;
+  static bool onoff = true;
+  if (lastvalue != value) {
+    lastvalue = value;
+    if (0 == value)
+      digitalWrite(pinOutput[0], 0);
+    else if (1 == value)
+      digitalWrite(pinOutput[0], 1);
+  }
+  if (value == 2) {
+    if (millis() > timer + 200) {
+      timer = millis();
+      onoff = !onoff;
+      digitalWrite(pinOutput[0], onoff);
+    }
+  }
+}
+#if _TYPE == 0
+void MQTT_Callback(char *topic, uint8_t *payload, unsigned int length) {
+  JsonDocument doc;
+  JsonArray args = doc.to<JsonArray>();
+  args.add(topic);
+  String eventName = args[0].as<const char *>();
+  DeserializationError error = deserializeJson(args[1], payload, length);
+  // String str(payload, length);
+  String str = "";
+  for (uint16_t i = 0; i < length; i++) {
+    str += char(payload[i]);
+  }
+  if (error) {
+    Serial.print("反序列化失敗:");
+    Serial.print(error.c_str());
+    Serial.print("，以字串模式運行!\n");
+  } else {
+    //serializeJsonPretty((*doc), Serial);
+
+    if (eventName == "MissGame" || eventName == _MODULE_ID) {
+
+      // 如果封包不包含ids自動補進id
+      if (!args[1]["ids"].isNull() && args[1]["id"].isNull()) {
+        args[1]["ids"].add(args[1]["id"].as<uint16_t>());
+      }
+      // 或者event本身就是id則補進id
+      else if (eventName == _MODULE_ID) {
+        args[1]["ids"].add(String(_MODULE_ID).toInt());
+      }
+
+      JsonArray args = doc.as<JsonArray>();
+      uint16_t id = 0;
+
+      for (JsonVariant item : args[1]["ids"].as<JsonArray>()) {
+        id = item.as<uint16_t>();
+        // FIXME 補上自製模組的運作方法
+
+        if (id == String(_MODULE_ID).toInt()) {
+          switch (id) {
+            case 100 ... 110:
+              {
+                JsonObject obj = args[1].as<JsonObject>();
+                //myCMD(&obj);
+                char tt[100];
+                serializeJsonPretty(obj, tt);
+                String trst = tt;
+                //透過Serial傳輸Json控制從機
+                Serial.println(trst);
+              }
+              break;
+            default:
+              Serial.print("無定義此ID:");
+              Serial.println(id);
+              break;
+          }
+        }
+      }
+
+    } /*
+  else if (eventName == "Alive")
+    ;
+  else {
+    Serial.print("無定義此事件:");
+    Serial.println(eventName.c_str());
+  }
+  */
+  }
+  doc.clear();
+}
+
+void WiFi_Connect() {
+
+  static uint32_t timer = 0;
+  static bool first = true;
+  uint8_t status = WiFi.status();
+  if (timer == 0 && status != WL_CONNECTED) {
+    timer = millis();
+    WiFi.begin(_WIFI_SSID, _WIFI_PASSWORD);
+    Serial.print(millis());
+    Serial.print(",嘗試連線到:");
+    Serial.println(_WIFI_SSID);
+  } else if (timer != 0 && millis() > timer + 1000 && status != WL_CONNECTED) {
+    digitalWrite(pinColor[0], onSide);
+    digitalWrite(pinColor[1], !onSide);
+    digitalWrite(pinColor[2], !onSide);
+    Serial.print(".");
+    timer = millis();
+
+  } else if (timer != 0 && status == WL_CONNECTED) {
+    Serial.println("");
+    Serial.println("WiFi已接回:");
+    Serial.println(WiFi.localIP());
+    digitalWrite(pinColor[0], !onSide);
+    timer = 0;
+  } else if (first && status == WL_CONNECTED) {
+    digitalWrite(pinColor[0], !onSide);
+    first = false;
+    Serial.println();
+    Serial.println("初次WiFi連線:");
+    Serial.println(WiFi.localIP());
+  }
+}
+void MQTT_Connect() {
+  String ip_port = _MQTT_IPPORT;
+  static int colonIndex = ip_port.lastIndexOf(':');  // 找到最後一個冒號的位置
+  if (colonIndex == -1) {
+    Serial.print("MQTT網址錯誤!");
+    Serial.print(ip_port.c_str());
+    Serial.println();
+    while (1) {
+      delay(100);
+    }
+  }
+  // 變數不能放條件內 不知為何會連不到
+  static String ipStr = ip_port.substring(0, colonIndex);
+  static String portStr = ip_port.substring(colonIndex + 1);  // 提取冒號後的子字符串
+  static uint16_t port = portStr.toInt();                     // 將字符串轉換為uint16_t類型
+  static WiFiClient WiFiClient;
+  static PubSubClient MQTTClient(WiFiClient);
+  static bool first = true;
+  if (first) {
+    first = false;
+    MQTTClient.setServer(ipStr.c_str(), port);
+    // 設定回呼函式
+    MQTTClient.setCallback(MQTT_Callback);
+  };
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!MQTTClient.connected()) {
+      static uint32_t timer = 0;
+      Serial.print("正在嘗試MQTT連線...{");
+      Serial.print(ipStr.c_str());
+      Serial.print(",");
+      Serial.print(port);
+      Serial.print("}\n");
+      digitalWrite(pinColor[1], !onSide);
+      digitalWrite(pinColor[2], onSide);
+      int8_t status = MQTTClient.connect((clientId != "" ? clientId.c_str() : String("W600-" + String(WiFi.macAddress())).c_str()));
+      if (status > 0) {
+        Serial.println("已連結到MQTT代理!重新訂閱主題");
+        digitalWrite(pinColor[1], onSide);
+        digitalWrite(pinColor[2], !onSide);
+        MQTTClient.subscribe("MissGame");
+        MQTTClient.subscribe(_MODULE_ID);
+        timer = 0;
+        // MQTTClient.publish("test/topic", String("{\"data\":\"Hello!I am " + clientId + "\"}").c_str());
+      } else if (status <= 0 && timer == 0) {
+        timer = millis();
+      } else if (status <= 0 && timer != 0 && millis() > timer + 5000) {
+        timer = millis();
+        Serial.print("錯誤代碼:");
+        Serial.print(MQTTClient.state());
+        Serial.print("，5秒後重連....\n");
+      }
+    }
+    MQTTClient.loop();
+  }
+}
+#endif
+void task() {
+  Serial.begin(115200);
+  delay(3000);  // 用來等待上傳用
+  Serial.println("開始執行!");
+//初始化
+#if _TYPE == 0
+  for (uint8_t i = 0; i < 3; i++) {
+    pinMode(pinColor[i], OUTPUT);
+    digitalWrite(pinColor[i], !onSide);
+  }
+  digitalWrite(pinColor[0], onSide);
+#elif _TYPE == 1
+
+  for (uint8_t i = 0; i < sizeof(pinInput); i++) {
+    pinMode(pinInput[i], INPUT);
+  }
+  for (uint8_t i = 0; i < sizeof(pinOutput); i++) {
+    pinMode(pinOutput[i], OUTPUT);
+    digitalWrite(pinOutput[i], 0);
+  }
+  uint16_t delayTime = 20;
+  Player_Serial.begin(9600);
+
+  if (myDFPlayer.begin(Player_Serial, /*isACK = */ true, /*doReset = */ true)) {
+    Serial.println("DFPlayer Mini 已連線\n");
+    myDFPlayer.setTimeOut(500);  // Set serial communictaion time out 500ms
+    delay(delayTime);
+    myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+    delay(delayTime);
+    myDFPlayer.volume(30);
+    delay(delayTime);
+    myDFPlayer.disableLoop();
+    delay(delayTime);
+    myDFPlayer.stop();
+  }
+
+#endif
+
+  uint16_t dalayTime = 10;
+  while (true) {
+
+#if _TYPE == 0
+    // 保持WiFi連線
+    WiFi_Connect();
+    // 保持MQTT連線
+    MQTT_Connect();
+#elif _TYPE == 1
+    if (Serial.available()) {
+      delay(10);
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, Serial);
+      JsonObject obj = doc.as<JsonObject>();
+      myCMD(&obj);
+    }
+    bool onSwitch = digitalRead(pinInput[0]);
+    bool offSwitch = digitalRead(pinInput[1]);
+    static uint32_t timer = 0;
+    //如果按下關閉
+    if (offSwitch && intLingth != 0) {
+      intLingth = 0;
+    }
+    //如果按下打開則紀錄時間
+    else if (onSwitch && 0 == timer) {
+      timer = millis();
+    }
+    //如果短按則切換模式或打開燈
+    else if (!onSwitch && 0 != timer) {
+      timer = 0;
+      if (1 == intLingth) intLingth = 2;
+      else if (2 == intLingth || 0 == intLingth) {
+        intLingth = 1;
+      }
+    } else if (onSwitch && 0 != timer && millis() > timer + 3000) {
+      timer = 0;
+      intLingth = 0;
+    }
+    Lingth(intLingth);
+#endif
+    delay(dalayTime);
+  }
+}
+
+
+
+void setup() {
+  task();
+}
+
+
+void loop() {}
+
