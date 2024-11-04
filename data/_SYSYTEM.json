@@ -52,7 +52,36 @@
   },
   "MQTT_SUBSCRIBE": {
     "Description": " MQTT欲訂閱主題",
-    "Default": ["MissGame"]
+    "Default": [
+      "MissGame"
+    ]
+  },
+  "Modbus": {
+    "_MODBUS_EN": {
+      "Description": " Modbus啟用",
+      "Register": 3,
+      "Default": 1
+    },
+    "_MODBUS_ID": {
+      "Description": " MODBUS ID",
+      "Register": 4,
+      "Default": 1
+    },
+    "_MODBUS_BAUD": {
+      "Description": " 鮑率",
+      "Register": 5,
+      "Default": 1152
+    },
+    "_MODBUS_PROTOCOL": {
+      "Description": " 通訊協議編號",
+      "Register": 6,
+      "Default": 0
+    },
+    "_MODULE_TYPE": {
+      "Description": " 模組類型",
+      "Register": 7,
+      "Default": 1
+    }
   },
   "_INFORMATION": {
     "Description": " 版本資料",
@@ -72,35 +101,10 @@
     "Register": 2,
     "Default": 0
   },
-  "_MODBUS_EN": {
-    "Description": " Modbus啟用",
-    "Register": 3,
-    "Default": 1
-  },
-  "_MODBUS_ID": {
-    "Description": " MODBUS ID",
-    "Register": 4,
-    "Default": 1
-  },
-  "_MODBUS_BAUD": {
-    "Description": " 鮑率",
-    "Register": 5,
-    "Default": 1152
-  },
-  "_MODBUS_PROTOCOL": {
-    "Description": " 通訊協議編號",
-    "Register": 6,
-    "Default": 0
-  },
-  "_MODULE_TYPE": {
-    "Description": " 模組類型",
-    "Register": 7,
-    "Default": 1
-  },
   "_WIFI_TYPE": {
     "Description": " 連線模式(0:OFF,1:STA,2:AP,3:APSTA)",
     "Register": 8,
-    "Default": 3
+    "Default": 1
   },
   "_WIFI_CONNECT_TIME": {
     "Description": " 嘗試連線次數",

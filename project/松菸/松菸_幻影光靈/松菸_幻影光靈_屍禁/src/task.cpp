@@ -916,7 +916,7 @@ void task()
 }
 
 
-#define _TYPE 1
+#define _TYPE 0
 
 #if _TYPE == 0
 #include <W600WiFi.h>
