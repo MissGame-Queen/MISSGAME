@@ -39,6 +39,8 @@
         "audio.h": "c",
         "myfunction.h": "c",
         "init.h": "c",
-        "missgame.h": "c"
+        "missgame.h": "c",
+        "esp_task_wdt.h": "c",
+        "arduinojson.h": "c"
     }
 }

@@ -1,16 +1,18 @@
 #include <MissGame.h>
 #include "task.h"
 #define _TYPE 1
+JsonDocument doc;
 void setup()
 {
   Serial.begin(115200);
   Wire.begin();
   uint8_t testBypass = 0;
-
+  doc["MCP23017"]["Address"].to<JsonArray>();
+  doc["MCP23017"]["Address"].add(0x20);
   xTaskCreatePinnedToCore(taskMCP230x7,
                           "taskMCP230x7",
                           2048,
-                          (void *)&testBypass,
+                          (void *)&doc,
                           1,
                           NULL,
                           0);

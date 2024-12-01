@@ -44,7 +44,7 @@
   },
   "MQTT_BROKER_URL": {
     "Description": " MQTT服務器網址(localhost.local)",
-    "Default": "192.168.0.8:1833"
+    "Default": "192.168.0.8:1888"
   },
   "MQTT_CLIENT_NAME": {
     "Description": " MQTT客戶端名稱",

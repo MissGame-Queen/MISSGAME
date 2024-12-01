@@ -71,13 +71,56 @@ void CoinDispenser(uint16_t time)
  */
 void taskBallDispenser(void *pvParam)
 {
-    Serial1.begin(9600, SERIAL_8N1, 22, 21);
-
-    pinMode(13, INPUT_PULLUP);
+    const uint8_t pinOut[]{25, 26, 27, 33};
+    const uint16_t runTime = 950;
     int16_t BallTime = 0;
     uint16_t BallTimeAdd = 0;
     int16_t BallShakeTime = 0;
     uint16_t BallShakeTimeAdd = 0;
+    for (uint8_t i = 0; i < 4; i++)
+        pinMode(pinOut[i], OUTPUT);
+    while (true)
+    {
+        if (xQueueReceive(queueBallTime, &BallTimeAdd, 0) == pdPASS)
+        {
+            BallTime += BallTimeAdd;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "新增出球次數:%d\n", BallTimeAdd);
+        }
+        if (xQueueReceive(queueBallShakeTime, &BallShakeTimeAdd, 0) == pdPASS)
+        {
+            BallShakeTime += BallShakeTimeAdd;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "新增抖動次數:%d\n", BallShakeTimeAdd);
+        }
+        
+        if (BallShakeTime > 0)
+        {
+            for (uint8_t i = 0; i < 4; i++)
+                digitalWrite(pinOut[i], 1);
+            _DELAY_MS(runTime / 2);
+            for (uint8_t i = 0; i < 4; i++)
+                digitalWrite(pinOut[i], 0);
+            BallShakeTime--;
+        }
+        else if (BallTime > 0)
+        {
+            for (uint8_t i = 0; i < 4; i++)
+                digitalWrite(pinOut[i], 1);
+            _DELAY_MS(runTime);
+            BallTime--;
+        }
+        else
+        {
+            for (uint8_t i = 0; i < 4; i++)
+                digitalWrite(pinOut[i], 0);
+        }
+        _DELAY_MS(100);
+    }
+    _DEBUG_WHILE;
+
+    Serial1.begin(9600, SERIAL_8N1, 22, 21);
+
+    pinMode(13, INPUT_PULLUP);
+
     while (1)
     {
         if (!digitalRead(13))
@@ -102,24 +145,25 @@ void taskBallDispenser(void *pvParam)
             uint32_t Shakepulses = 80;
             uint16_t dalayTime = 50;
             uint8_t parameter[6];
-            for(uint8_t j=0;j<5;j++){
-            for (uint8_t dir = 0; dir < 2; dir++)
+            for (uint8_t j = 0; j < 5; j++)
             {
-                parameter[0] = (dir << 7) + ((speed >> 8) & 0xFF);
-                parameter[1] = speed & 0xFF;
-                for (uint8_t i = 0; i < 4; i++)
-                    parameter[2 + i] = (Shakepulses >> (8 * (3 - i))) & 0xFF;
-                uint8_t dataWrite[] = {0xFA, 0x01, 0xFD, parameter[0], parameter[1], acc, parameter[2],
-                                       parameter[3], parameter[4], parameter[5], 0x00};
-                uint16_t crc = 0;
-                for (uint8_t i = 0; i < sizeof(dataWrite); i++)
-                    crc += dataWrite[i];
-                dataWrite[sizeof(dataWrite) - 1] = crc & 0xFF;
-                Serial1.write(dataWrite, sizeof(dataWrite));
-                _DELAY_MS(dalayTime);
+                for (uint8_t dir = 0; dir < 2; dir++)
+                {
+                    parameter[0] = (dir << 7) + ((speed >> 8) & 0xFF);
+                    parameter[1] = speed & 0xFF;
+                    for (uint8_t i = 0; i < 4; i++)
+                        parameter[2 + i] = (Shakepulses >> (8 * (3 - i))) & 0xFF;
+                    uint8_t dataWrite[] = {0xFA, 0x01, 0xFD, parameter[0], parameter[1], acc, parameter[2],
+                                           parameter[3], parameter[4], parameter[5], 0x00};
+                    uint16_t crc = 0;
+                    for (uint8_t i = 0; i < sizeof(dataWrite); i++)
+                        crc += dataWrite[i];
+                    dataWrite[sizeof(dataWrite) - 1] = crc & 0xFF;
+                    Serial1.write(dataWrite, sizeof(dataWrite));
+                    _DELAY_MS(dalayTime);
+                }
             }
-            }
-            BallShakeTime=0;
+            BallShakeTime = 0;
         }
         else if (BallTime > 0)
         {
@@ -524,7 +568,7 @@ void taskWeaponLight(void *pvParam)
                 if (intFlashTime == intLevelBatter)
                 {
                     float number = analogRead(pinBattery) * 0.0016874246752351; // 假设这是你的浮点数值
-                    roundedNumber = round(number * 100);                       // 将浮点数乘以100后四舍五入为整数
+                    roundedNumber = round(number * 100);                        // 将浮点数乘以100后四舍五入为整数
                     _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "讀取電池電量!%f,%d,%d0 % \n", number, roundedNumber, intLevelBatter);
                     intLevelBatter = map(min(max(roundedNumber, intMin), intMax), intMin, intMax, 1, 10);
                     intFlashTime++;

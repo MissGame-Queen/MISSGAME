@@ -1,7 +1,5 @@
 #include <MissGame.h>
 
-JsonDocument doc;
-JsonDocument* ptrDoc=&doc;
 /**
  * @brief 生化威脅掃描系統
  *
@@ -24,8 +22,10 @@ void task(void *pvParam)
         _Finish,
         _DEBUG,
     };
+    JsonDocument doc;
+    JsonDocument *ptrDoc = &doc;
     const uint8_t pinOutput[] = {12, 13, 14, 15};
-const uint8_t pinInput[] = {36, 39, 34, 35};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
     uint8_t stepGame = 0;
     bool first = true;
     uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
@@ -113,7 +113,7 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             }
             if (if3timeplay < 3 && millis() > 4000 && (millis() - 4000) > timer)
             {
-                doc["name"]="/mp3/1-1.wav";
+                doc["I2S"]["name"] = "/mp3/1-1.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 if3timeplay++;
@@ -132,9 +132,9 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
-                timer = 0;
+                timer = millis();
                 havelock_Projector = false;
-                                doc["name"]="/mp3/1-2.wav";
+                doc["I2S"]["name"] = "/mp3/1-2.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
             }
             if ((millis() > 7000) && (millis() - 7000) > timer)
@@ -146,15 +146,15 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
         break;
         case _AirDisinfection:
         {
-            static uint8_t swRemote;
+            // static uint8_t swRemote;
             if (first)
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
-                swRemote = dataInput_32t & pinMCP_Input_AirDisinfection;
+                // swRemote = dataInput_32t & pinMCP_Input_AirDisinfection;
             }
-            // 如果收到訊號或者按壓遙控器
-            if (swRemote != (dataInput_32t & pinMCP_Input_AirDisinfection))
+            // 如果收到空氣完成訊號
+            if (dataInput_32t & pinMCP_Input_AirDisinfection)
             {
                 stepGame++;
                 first = true;
@@ -195,28 +195,28 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             }
             if (playType < 2 && millis() > 4000 && (millis() - 4000) > timer)
             {
-                                doc["name"]="/mp3/1-1.wav";
+                doc["I2S"]["name"] = "/mp3/1-1.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 playType++;
             }
             else if (playType == 2 && millis() > 4000 && (millis() - 4000) > timer)
             {
-                doc["name"]="/mp3/1-2.wav";
+                doc["I2S"]["name"] = "/mp3/1-2.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 playType++;
             }
             else if (playType == 3 && millis() > 8000 && (millis() - 8000) > timer)
             {
-                doc["name"]="/mp3/1-3.wav";
+                doc["I2S"]["name"] = "/mp3/1-3.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 playType++;
             }
             else if (playType == 4 && millis() > 5000 && (millis() - 5000) > timer)
             {
-                doc["name"]="/mp3/1-3.wav";
+                doc["I2S"]["name"] = "/mp3/1-3.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 playType++;
@@ -277,14 +277,14 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
                 playType = 0;
-                doc["name"]="/mp3/1-1.wav";
+                doc["I2S"]["name"] = "/mp3/1-1.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 havelock_Projector = true;
             }
             if (playType < 2 && millis() > 5000 && (millis() - 5000) > timer)
             {
-                doc["name"]="/mp3/1-4.wav";
+                doc["I2S"]["name"] = "/mp3/1-4.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 playType++;
@@ -309,7 +309,7 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             }
             if ((millis() - 5000) > timer)
             {
-                stepGame++;
+                stepGame = _Reset;
                 first = true;
             }
         }
@@ -361,6 +361,7 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
  */
 void task2(void *pvParam)
 {
+
     enum Status_e
     {
         _Reset,           // RE
@@ -371,8 +372,10 @@ void task2(void *pvParam)
         _Finish,
         _DEBUG,
     };
+    JsonDocument doc;
+    JsonDocument *ptrDoc = &doc;
     const uint8_t pinOutput[] = {12, 13, 14, 15};
-const uint8_t pinInput[] = {36, 39, 34, 35};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
     uint8_t stepGame = 0;
     bool first = true;
     uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
@@ -473,7 +476,7 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
                 dataOutput_32t = dataOutput_32t | pinMCP_Output_LiftMotorDir;
                 dataOutput_8t = dataOutput_8t | pinMCP_Output_LiftMotorDir;
 
-                doc["name"]="/mp3/2-1.wav";
+                doc["I2S"]["name"] = "/mp3/2-1.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
             }
@@ -523,7 +526,7 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
-                doc["name"]="/mp3/2-2.wav";
+                doc["I2S"]["name"] = "/mp3/2-2.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
                 intPlay = 0;
@@ -532,14 +535,14 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
             {
                 dataOutput_32t = dataOutput_32t | pinMCP_Output_RunLight;
                 intPlay++;
-                doc["name"]="/mp3/2-3.wav";
+                doc["I2S"]["name"] = "/mp3/2-3.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
             }
             else if (millis() > 16000 + timer && intPlay == 1)
             {
                 intPlay++;
-                doc["name"]="/mp3/2-4.wav";
+                doc["I2S"]["name"] = "/mp3/2-4.wav";
                 xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
                 timer = millis();
             }
@@ -604,10 +607,15 @@ const uint8_t pinInput[] = {36, 39, 34, 35};
 
 // ################消毒系統上方16*16遊戲程式變數################
 #include <Arduino.h>
-// const uint8_t pinSwitch[2][4] = {{A0, A1, A2, A3}, {A8, A9, A10, A11}};
-// const uint8_t pinLingth[2][4] = {{A4, A5, A6, A7}, {A12, A13, A14, A15}};
+// 燒程式記得改!!不然會無法運作
+#define DEBUG true
+#ifdef DEBUG
 const uint8_t pinSwitch[2][4] = {};
 const uint8_t pinLingth[2][4] = {};
+#else
+const uint8_t pinSwitch[2][4] = {{A0, A1, A2, A3}, {A8, A9, A10, A11}};
+const uint8_t pinLingth[2][4] = {{A4, A5, A6, A7}, {A12, A13, A14, A15}};
+#endif
 const uint8_t pinOut = 13;
 // uint8_t arrLingth[4]{0, 0, 0, 0};
 uint16_t bitLingth = 0X6B9E;               // 16*16點亮位數
@@ -619,16 +627,22 @@ void setLingth()
 {
     static uint8_t valX = 0, valY = 0;
     digitalWrite(pinLingth[0][valY], 1);
-    if (((uint16_t)(1 << (valX + valY * 4))) & bitLingth)
+    for (uint8_t i = 0; i < 4; i++)
     {
-        digitalWrite(pinLingth[1][valX], 0);
-        delay(1);
+        valX = i;
+        if (((uint16_t)(1 << (valX + valY * 4))) & bitLingth)
+            digitalWrite(pinLingth[1][valX], 0);
+    }
+    delay(1);
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        valX = i;
         digitalWrite(pinLingth[1][valX], 1);
     }
     digitalWrite(pinLingth[0][valY], 0);
-    valX = (valX + 1) % 4;
-    if (valX == 0)
-        valY = (valY + 1) % 4;
+    // valX = (valX + 1) % 4;
+    // if (valX == 0)
+    valY = (valY + 1) % 4;
 }
 
 uint16_t getButten()
@@ -699,12 +713,10 @@ uint16_t check()
     return valReturn;
 }
 void (*resetFunc)(void) = 0;
-void task2_2(void *pvParam)
+void task2_2()
 {
-
-    // Serial.begin(9600);
+    Serial.begin(115200);
     pinMode(pinOut, OUTPUT);
-    // pinMode(12, INPUT_PULLUP);
     digitalWrite(pinOut, 1);
     for (uint8_t i = 0; i < 4; i++)
     {
@@ -716,11 +728,14 @@ void task2_2(void *pvParam)
         digitalWrite(pinLingth[0][i], 0);
         digitalWrite(pinLingth[1][i], 1);
     }
+
     while (true)
     {
+
         getButten(); // 獲取按鈕狀態
         setLingth(); // 輸出燈號
-        if (millis() > timer + 20000)
+        // 若20S沒按按鈕則RE，#取消
+        if (false && millis() > timer + 20000 && timer != 0)
         {
             Serial.println("RE");
             delay(100);
@@ -729,13 +744,13 @@ void task2_2(void *pvParam)
         // 如果按鈕被按下
         if (bitLastSwitch != bitSwitch)
         {
-
             // 僅紀錄按下，放開不紀錄
             if (bitSwitch > bitLastSwitch)
             {
-
                 // bitLingth = getButten();
                 bitLingth = check();
+                Serial.println(bitLingth);
+                timer = millis();
             }
             bitLastSwitch = bitSwitch;
         }

@@ -6,6 +6,7 @@ let arr_2 = [];
 let arr_3 = [];
 let arr_4 = [];
 let arr_5 = [];
+let arr_6 = [];
 let arr_Fruits = [];
 const arrWeapon = [
     "EPC_杖",
@@ -23,6 +24,7 @@ const arrSpiritStone = [
     "EPC_靈石劍",
     "EPC_靈石斧",
 ]
+const lantern = "EPC_提燈";
 var strTEST = "";
 
 try {
@@ -30,13 +32,14 @@ try {
     if (str === "") str = "[]";
     arr_Fruits = JSON.parse(str ?? "[]");
 
-    let testStr="TEST\n";
-    arrData.forEach(item => {
+    let testStr = "TEST\n";
 
-        
-        
+    arrData.forEach(item => {
         //[ ]武器登錄系統
         if (item.ant === 1) {
+
+            testStr += "item.ant === 1,";
+
             arrWeapon.forEach(itemWeapon => {
                 let arr = [];
                 arr = variableTable.name[itemWeapon]?.get("value") ?? ["變數為空"];
@@ -52,18 +55,19 @@ try {
                         arr_1.push(jsonData);
                     }
                 })
-            })
+            }
+            )
         }
         else if (item.ant === 2 || item.ant === 3 || item.ant === 4) {
             //[ ]水果登錄系統
 
             if (item.ant === 3) {
-                
-              
+
+
                 let strFruits = variableTable.name["EPC_魔藥室水果"]?.get("value");
                 if (strFruits !== "") {
                     let arr = JSON.parse(strFruits) ?? [];
-                    
+
                     arr.forEach(itemFruitsEPC => {
                         if (itemFruitsEPC === item.epc) {
                             arr_Fruits.push(item.epc);
@@ -74,7 +78,24 @@ try {
             }
 
         }
-        
+        else if (item.ant === 5) {
+            //[ ]屍禁提燈登入系統
+            let arr = [];
+            arr = variableTable.name[lantern]?.get("value") ?? ["變數為空"];
+            arr = JSON.parse(variableTable.name[lantern]?.get("value"));
+            arr.forEach(itemEPC => {
+                JSON.stringify(itemEPC);
+                if (itemEPC[1] == item.epc) {
+                     let date= new Date();
+                    let jsonData = {
+                        "log":date,
+                        "id": itemEPC[0],
+                        "value": 2
+                    };
+                    arr_6.push(jsonData);
+                }
+            })
+        }
     });
 } catch (error) {
 
@@ -244,6 +265,10 @@ if (arr_Fruits.length > 0) {
         variableTable.name["魔藥室水果"]?.save("value", String(arr_Fruits.length));
     }
 }
+//[v]提燈登錄系統
+if (arr_6.length > 0) {
+    variableTable.name["GV_觸發提燈變化"]?.save("value", JSON.stringify(arr_6[0]));
+}
 
-//variableTable.name["GV_TEST"]?.save("value", strTEST);
+
 

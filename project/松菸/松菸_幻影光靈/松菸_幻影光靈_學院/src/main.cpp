@@ -246,7 +246,7 @@ void Module_CMD(JsonDocument *doc)
                          // CoinDispenser(value);
             xQueueSend(queueBallTime, &value, portMAX_DELAY);
         }
-        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, value);
+//        _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "ID= %d , 出球機執行%d次\n", id, value);
         break;
       }
       case 7 ... 9:
@@ -384,7 +384,7 @@ void Module_Setup(uint16_t id)
     _CONSOLE_PRINTLN(_PRINT_LEVEL_INFO, "出球機模式~");
     xTaskCreatePinnedToCore(taskBallDispenser,
                             "taskBallDispenser",
-                            40960,
+                            4096,
                             NULL,
                             1,
                             NULL,
