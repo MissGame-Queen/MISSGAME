@@ -72,11 +72,8 @@ enum mcpOutputRegister_e
     mpcO_3_6 = 0x40000000,
     mpcO_3_7 = 0x80000000,
 };
-const uint8_t pinOutput[] = {15, 14, 12, 13};
-const uint8_t pinInput[] = {36, 39, 34, 35};
-const uint8_t pinLED = 15, pinBCLK = 27, pinLRC = 25, pinDOUT = 26;
-void task(void *pvParam);
-void taskMCP230x7(void *pvParam);
 
-void taskPCM5102(void *pvParam);
+void FloorMechanism(void *pvParam);
+void Dialla(void *pvParam);
+
 #endif

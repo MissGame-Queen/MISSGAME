@@ -82,7 +82,7 @@ void task(void *pvParam)
             //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "dataOutput_32t=0x%08X\n", dataOutput_32t);
             first = true;
 
-            stepGame++;
+            stepGame = _AirDisinfection;
         }
         break;
         case _PressButton:
@@ -343,10 +343,17 @@ void task(void *pvParam)
         else
             dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Door);
         // 空氣消毒謎題跳過
-        if (dataInput_32t & pinMCP_Input_Remote_AirDisinfection)
-            dataOutput_32t = dataOutput_32t | pinMCP_Output_AirDisinfection;
-        else
-            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_AirDisinfection);
+        uint32_t State = dataInput_32t & pinMCP_Input_Remote_AirDisinfection;
+        static uint32_t lastState = State;
+        if (lastState != State)
+        {
+            lastState = State;
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "觸發空氣消毒跳過\n");
+            if (dataOutput_32t & pinMCP_Output_AirDisinfection)
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Output_AirDisinfection);
+            else
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_AirDisinfection;
+        }
 
         dataInputLast_32t = dataInput_32t;
 
@@ -598,6 +605,12 @@ void task2(void *pvParam)
         else
             dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Door);
 
+        // 跳關訊號
+        if (dataInput_32t & pinMCP_Input_Finsh && stepGame != _PuzzleCompleted && stepGame != _Finish)
+        {
+            stepGame = _PuzzleCompleted;
+            first = true;
+        }
         dataInputLast_32t = dataInput_32t;
 
         // strip.show();

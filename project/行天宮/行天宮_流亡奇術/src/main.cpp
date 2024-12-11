@@ -1,4 +1,5 @@
 #include "main.h"
+#define _TYPE 1
 JsonDocument doc;
 
 void setup()
@@ -6,6 +7,7 @@ void setup()
   Serial.begin(115200);
   Wire.begin();
   uint8_t testBypass = 0;
+#if _TYPE == 0
   doc["MCP23017"]["Address"].to<JsonArray>();
   doc["MCP23017"]["Address"].add(0x27);
   doc["MCP23017"]["Address"].add(0x26);
@@ -18,14 +20,23 @@ void setup()
                           1,
                           NULL,
                           0);
-  xTaskCreatePinnedToCore(task,
-                          "task",
+  xTaskCreatePinnedToCore(FloorMechanism,
+                          "FloorMechanism",
                           4096,
                           (void *)&testBypass,
                           1,
                           NULL,
                           0);
+#else
 
+  xTaskCreatePinnedToCore(Dialla,
+                          "Dialla",
+                          4096,
+                          (void *)&testBypass,
+                          1,
+                          NULL,
+                          0);
+#endif
   taskPCM5102((void *)&testBypass);
 }
 void loop()

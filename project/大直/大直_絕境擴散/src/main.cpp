@@ -1,6 +1,6 @@
 #include <MissGame.h>
 #include "task.h"
-#define _TYPE 1
+#define _TYPE 2//1:掃描系統,2:空氣消毒系統,22:空器消毒系統的按鈕
 JsonDocument doc;
 void setup()
 {

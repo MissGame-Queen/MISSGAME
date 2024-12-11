@@ -1,5 +1,5 @@
 #include "task.h"
-void task(void *pvParam)
+void FloorMechanism(void *pvParam)
 {
     enum stripType_Game_e
     {
@@ -12,7 +12,9 @@ void task(void *pvParam)
     };
     JsonDocument doc;
     JsonDocument *ptrDoc = &doc;
-
+    const uint8_t pinOutput[] = {15, 14, 12, 13};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
+    const uint8_t pinLED = 15, pinBCLK = 27, pinLRC = 25, pinDOUT = 26;
     const uint32_t pinInputMPC[12] = {mpcI_0_4, mpcI_0_7, mpcI_1_5, mpcI_1_4, mpcI_1_6, mpcI_0_3,
                                       mpcI_0_2, mpcI_0_1, mpcI_1_1, mpcI_1_3, mpcI_1_2, mpcI_0_6};
     const uint32_t pinOutputMPC[4]{mpcO_0_3, mpcO_0_2, mpcO_0_0, mpcO_0_1};
@@ -470,6 +472,197 @@ void task(void *pvParam)
             _DELAY_MS(1);
             xSemaphoreGive(rmtMutex);
         }
+
+        _DELAY_MS(100);
+    }
+}
+
+void Dialla(void *pvParam)
+{
+    enum Status_e
+    {
+        _Reset,
+        _Standby,
+        _Sound1,
+        _Finish,
+        _DEBUG,
+    };
+    JsonDocument doc;
+    JsonDocument *ptrDoc = &doc;
+    const uint8_t pinOutput[] = {12, 13, 14, 15};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
+    uint8_t stepGame = 0;
+    bool first = true;
+    uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
+    uint8_t dataInput_8t = 0, dataInputLast_8t = 0;
+    // const uint32_t pinMCP_Output_FinalDoor = (1 << 0);             // 最終大門
+    // const uint32_t pinMCP_Input_ScanButton = (1 << 0);             // 掃描按鈕
+    // const uint32_t pinMCP_Input_Remote_Projector = (1 << 7);       // 投影機遙控器
+    const uint32_t pin_Input_Remote_A = (1 << 0); // 遙控器A鍵
+    const uint32_t pin_Input_Remote_B = (1 << 1); // 遙控器B鍵
+    for (uint8_t i = 0; i < 4; i++)
+        pinMode(pinInput[i], INPUT);
+    while (1)
+    {
+        // 讀取MCP23017的Input資料
+        if (xQueueReceive(queueMCP230x7_Input, &dataInput_32t, 0) == pdPASS)
+        {
+            ;
+        }
+        // 如果Output焊上次不一樣則輸出到MCP23017
+        if (dataOutput_32t != dataOutputLast_32t)
+        {
+            xQueueSend(queueMCP230x7_Output, &dataOutput_32t, portMAX_DELAY);
+            dataOutputLast_32t = dataOutput_32t;
+            //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "dataOutput_32t=0x%08X\n", dataOutput_32t);
+        }
+        dataInput_8t = 0;
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            dataInput_8t += ((!digitalRead(pinInput[i])) ? 1 << i : 0);
+        }
+        if (dataInputLast_8t != dataInput_8t)
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "輸入:%02x!\n", dataInput_8t);
+            dataInputLast_8t = dataInput_8t;
+        }
+
+        //[ ]遊戲流程
+        switch (stepGame)
+        {
+        case _Reset:
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+            doc["I2S"]["name"] = "";
+            doc["Serial"]["value"] = 0;
+            doc["Serial"]["loop"] = false;
+            xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+            first = true;
+            stepGame++;
+        }
+        break;
+        case _Standby:
+            break;
+        case _Sound1:
+        {
+            static uint32_t timer = 0;
+            static uint8_t intsound = 0;
+            if (first)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                doc["I2S"]["name"] = "/mp3/001換紫光世界.mp3";
+                intsound = 1;
+                doc["Serial"]["value"] = intsound;
+                doc["Serial"]["loop"] = false;
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                timer = millis();
+            }
+            switch (intsound)
+            {
+            case 1:
+                if (millis() > timer + 7000)
+                {
+                    doc["I2S"]["name"] = "/mp3/002你們是誰.mp3";
+                    timer = millis();
+                    intsound++;
+                    doc["Serial"]["value"] = intsound;
+                    doc["Serial"]["loop"] = false;
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                }
+                break;
+            case 2:
+                if (millis() > timer + 11000)
+                {
+                    doc["I2S"]["name"] = "/mp3/003獅子.mp3";
+                    timer = millis();
+                    intsound++;
+                    doc["Serial"]["value"] = intsound;
+                    doc["Serial"]["loop"] = false;
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                }
+                break;
+            case 3:
+                if (millis() > timer + 22000)
+                {
+                    doc["I2S"]["name"] = "/mp3/004達拉夫人.mp3";
+                    timer = millis();
+                    intsound++;
+                    doc["Serial"]["value"] = intsound;
+                    doc["Serial"]["loop"] = false;
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                }
+                break;
+            case 4:
+                if (millis() > timer + 20000)
+                {
+                    first = true;
+                    stepGame = _Reset;
+                }
+                break;
+            }
+        }
+        break;
+        case _Finish:
+        {
+            static uint32_t timer = 0;
+            static uint8_t intsound = 0;
+            if (first)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                doc["I2S"]["name"] = "/mp3/005成功破除結界.mp3";
+                intsound = 5;
+                doc["Serial"]["value"] = intsound;
+                doc["Serial"]["loop"] = false;
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                timer = millis();
+            }
+            switch (intsound)
+            {
+            case 5:
+                if (millis() > timer + 4000)
+                {
+                    doc["I2S"]["name"] = "/mp3/006恭喜你們.mp3";
+                    timer = millis();
+                    intsound++;
+                    doc["Serial"]["value"] = intsound;
+                    doc["Serial"]["loop"] = false;
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                }
+                break;
+            case 6:
+                if (millis() > timer + 33000)
+                {
+                    first = true;
+                    stepGame = _Reset;
+                }
+            }
+        }
+        break;
+        case _DEBUG:
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DEBUG END!\n");
+            stepGame = _Reset;
+        }
+        break;
+
+        default:
+            break;
+        }
+        //[ ]遙控器
+        if ((~dataInput_8t) & pin_Input_Remote_A)
+        {
+            stepGame = _Sound1;
+            first = true;
+        }
+        else if ((~dataInput_8t) & pin_Input_Remote_B)
+        {
+            stepGame = _Finish;
+            first = true;
+        }
+
+        dataInputLast_32t = dataInput_32t;
 
         _DELAY_MS(100);
     }

@@ -85,12 +85,20 @@ try {
             arr = JSON.parse(variableTable.name[lantern]?.get("value"));
             arr.forEach(itemEPC => {
                 JSON.stringify(itemEPC);
-                if (itemEPC[1] == item.epc) {
+                let strisnull=variableTable.name["GV_觸發提燈變化"]?.get("value")??"";
+                
+                if (itemEPC[1] == item.epc&&strisnull=="") {
                      let date= new Date();
+                     let formattedDate = `${date.getFullYear()}/${
+                        String(date.getMonth() + 1).padStart(2, '0')}/${
+                        String(date.getDate()).padStart(2, '0')} ${
+                        String(date.getHours()).padStart(2, '0')}:${
+                        String(date.getMinutes()).padStart(2, '0')}:${
+                        String(date.getSeconds()).padStart(2, '0')}`;
                     let jsonData = {
-                        "log":date,
+                        "log":formattedDate,
                         "id": itemEPC[0],
-                        "value": 2
+                        "value": 4
                     };
                     arr_6.push(jsonData);
                 }
