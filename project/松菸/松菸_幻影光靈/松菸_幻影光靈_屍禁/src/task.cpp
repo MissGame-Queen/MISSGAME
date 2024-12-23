@@ -934,10 +934,20 @@ void lantern()
         delay(10);
     }
 }
+#ifdef ARDUINO
 void lantern2()
 {
-    // 0:主控,1:從機
-#define _TYPE 1
+    // 0:W600主控,1:提燈,2:蠟燭
+#define _TYPE 0
+#if _TYPE == 0
+#ifdef __AVR__
+#error "板子或_TYPE錯誤!"
+#endif
+#else
+#ifndef __AVR__
+#error "板子或_TYPE錯誤!"
+#endif
+#endif
 // #define _DEBUG 1
 #include <ArduinoJson.h>
 
@@ -954,7 +964,7 @@ void lantern2()
 #define _MODULE_ID "100"
     String clientId = "Lantern_" + String(_MODULE_ID);
     const uint8_t pinColor[] = {11, 13, 12};
-#elif _TYPE == 1
+#else
 #include <DFRobotDFPlayerMini.h>
 #include <SoftwareSerial.h>
 #include <SD.h>
@@ -968,7 +978,13 @@ void lantern2()
     uint8_t intType = 0;
     JsonDocument docArduino;
 #endif
-    const uint16_t analogMaxValue = 255;
+
+
+#if _TYPE == 1
+    const uint16_t analogMaxValue = 177;
+#else
+    const uint16_t analogMaxValue = 177;
+#endif
     const bool onSide = 1;
 #if _TYPE == 0
     void MQTT_Callback(char *topic, uint8_t *payload, unsigned int length)
@@ -1160,7 +1176,7 @@ void lantern2()
             MQTTClient.loop();
         }
     }
-#elif _TYPE == 1
+#else
     /**
      * @brief 默認讀取遙控器訊號以變更參數
      * 也可手動輸入強制變更參數
@@ -1317,6 +1333,7 @@ void lantern2()
                 // B:燈OFF
             case 1:
             {
+                intLingth = 0;
                 digitalWrite(pinOutput[0], !onSide);
                 digitalWrite(pinOutput[1], !onSide);
                 if (havemp4Player)
@@ -1325,6 +1342,7 @@ void lantern2()
             break;
                 // C:呼吸由慢到快閃共10S後全暗,播音效,含震動
             case 2:
+                intLingth = 0;
                 timer = millis();
                 digitalWrite(pinOutput[1], onSide);
                 if (havemp4Player)
@@ -1416,7 +1434,7 @@ void lantern2()
         }
         digitalWrite(pinColor[0], onSide);
 #endif
-#elif _TYPE == 1
+#else
 
         for (uint8_t i = 0; i < sizeof(pinInput); i++)
         {
@@ -1462,7 +1480,7 @@ void lantern2()
             WiFi_Connect();
             // 保持MQTT連線
             MQTT_Connect();
-#elif _TYPE == 1
+#else
             if (Serial.available())
             {
                 delay(10);
@@ -1495,4 +1513,6 @@ void lantern2()
     }
 
     void loop() {}
+
 }
+#endif

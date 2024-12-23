@@ -483,8 +483,8 @@ void Dialla(void *pvParam)
     {
         _Reset,
         _Standby,
-        _Sound1,
-        _Finish,
+        _Start,  // 啟動小石像
+        _Finish, // 達拉完成
         _DEBUG,
     };
     JsonDocument doc;
@@ -495,11 +495,15 @@ void Dialla(void *pvParam)
     bool first = true;
     uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
     uint8_t dataInput_8t = 0, dataInputLast_8t = 0;
-    // const uint32_t pinMCP_Output_FinalDoor = (1 << 0);             // 最終大門
-    // const uint32_t pinMCP_Input_ScanButton = (1 << 0);             // 掃描按鈕
-    // const uint32_t pinMCP_Input_Remote_Projector = (1 << 7);       // 投影機遙控器
-    const uint32_t pin_Input_Remote_A = (1 << 0); // 遙控器A鍵
-    const uint32_t pin_Input_Remote_B = (1 << 1); // 遙控器B鍵
+    const uint32_t pinMCP_Output_PurpleLight1 = (1 << 0); // 紫光1
+    const uint32_t pinMCP_Output_PurpleLight2 = (1 << 1); // 紫光2
+    const uint32_t pinMCP_Output_PurpleLight3 = (1 << 2); // 紫光3
+    const uint32_t pinMCP_Output_PurpleLight4 = (1 << 3); // 紫光4
+    const uint32_t pinMCP_Output_SaltLamp = (1 << 4);     // 鹽燈(不知為何接NC接點)
+    const uint32_t pinMCP_Output_Projection = (1 << 5);   // 投影燈(不知為何接NC接點)
+    const uint32_t pinMCP_Output_Door = (1 << 6);         // 門電磁鐵
+    const uint32_t pin_Input_Remote_A = (1 << 0);         // 遙控器A鍵
+    const uint32_t pin_Input_Remote_B = (1 << 1);         // 遙控器B鍵
     for (uint8_t i = 0; i < 4; i++)
         pinMode(pinInput[i], INPUT);
     while (1)
@@ -537,18 +541,32 @@ void Dialla(void *pvParam)
             doc["Serial"]["value"] = 0;
             doc["Serial"]["loop"] = false;
             xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight1);
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight2);
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight3);
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight4);
+            dataOutput_32t = dataOutput_32t | pinMCP_Output_Projection;
+            dataOutput_32t = dataOutput_32t & (~pinMCP_Output_SaltLamp);
+            dataOutput_32t = dataOutput_32t | pinMCP_Output_Door;
             first = true;
             stepGame++;
         }
         break;
         case _Standby:
             break;
-        case _Sound1:
+        case _Start:
         {
             static uint32_t timer = 0;
             static uint8_t intsound = 0;
             if (first)
             {
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_PurpleLight1;
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_PurpleLight2;
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_PurpleLight3;
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_PurpleLight4;
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Projection);
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_SaltLamp;
+                dataOutput_32t = dataOutput_32t | pinMCP_Output_Door;
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
                 doc["I2S"]["name"] = "/mp3/001換紫光世界.mp3";
@@ -597,7 +615,7 @@ void Dialla(void *pvParam)
                 if (millis() > timer + 20000)
                 {
                     first = true;
-                    stepGame = _Reset;
+                    stepGame = _Standby;
                 }
                 break;
             }
@@ -611,6 +629,7 @@ void Dialla(void *pvParam)
             {
                 _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
                 first = false;
+
                 doc["I2S"]["name"] = "/mp3/005成功破除結界.mp3";
                 intsound = 5;
                 doc["Serial"]["value"] = intsound;
@@ -632,10 +651,24 @@ void Dialla(void *pvParam)
                 }
                 break;
             case 6:
-                if (millis() > timer + 33000)
+
+                if (millis() > timer + 37000)
                 {
                     first = true;
                     stepGame = _Reset;
+                }
+                else if (millis() > timer + 35000)
+                {
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_SaltLamp);
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Door);
+                }
+                else if (millis() > timer + 33000)
+                {
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight1);
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight2);
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight3);
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_PurpleLight4);
+                    dataOutput_32t = dataOutput_32t | pinMCP_Output_Projection;
                 }
             }
         }
@@ -651,17 +684,197 @@ void Dialla(void *pvParam)
             break;
         }
         //[ ]遙控器
-        if ((~dataInput_8t) & pin_Input_Remote_A)
+        if ((dataInput_8t & pin_Input_Remote_A) || (dataInput_32t & pin_Input_Remote_A))
         {
-            stepGame = _Sound1;
+            stepGame = _Start;
             first = true;
         }
-        else if ((~dataInput_8t) & pin_Input_Remote_B)
+        else if ((dataInput_8t & pin_Input_Remote_B) || (dataInput_32t & pin_Input_Remote_B))
         {
             stepGame = _Finish;
             first = true;
         }
 
+        dataInputLast_32t = dataInput_32t;
+
+        _DELAY_MS(100);
+    }
+}
+/**
+ * @brief 偽日機關
+ *@note 藍線:[輸入]用來切換奇術/流亡
+ *@note 藍白:[輸出]用來啟動瓦爾綠光
+ * @param pvParam
+ */
+void FalseSun(void *pvParam)
+{
+
+    enum Status_e
+    {
+        _Reset,
+        _Start,     // 等待放技能
+        _OtherMode, // 非奇術師模式
+        _DEBUG,
+    };
+    JsonDocument doc;
+    JsonDocument *ptrDoc = &doc;
+    const uint8_t pinOutput[] = {12, 13, 14, 15};
+    const uint8_t pinInput[] = {36, 39, 34, 35};
+    uint8_t stepGame = 0;
+    bool first = true;
+    uint32_t dataInput_32t = 0, dataInputLast_32t = 0, dataOutput_32t = 0, dataOutputLast_32t = 0xFF;
+    uint8_t dataInput_8t = 0, dataInputLast_8t = 0;
+    uint32_t pinMCP_Output_Lingth[6];    // 技能石燈光
+    uint32_t pinMCP_Input_SkillStone[6]; // 磁簧
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        pinMCP_Output_Lingth[i] = 1 << i;
+        pinMCP_Input_SkillStone[i] = 1 << i;
+    }
+
+    const uint32_t pin_Input_Mode = (1 << 6);    // 模式切換
+    const uint32_t pin_Output_Finish = (1 << 6); // 瓦爾綠光輸出
+
+    for (uint8_t i = 0; i < 4; i++)
+        pinMode(pinInput[i], INPUT);
+    while (1)
+    {
+        //[ ]IO控制
+        {
+            // 讀取MCP23017的Input資料
+            if (xQueueReceive(queueMCP230x7_Input, &dataInput_32t, 0) == pdPASS)
+            {
+                ;
+            }
+            // 如果Output焊上次不一樣則輸出到MCP23017
+            if (dataOutput_32t != dataOutputLast_32t)
+            {
+                xQueueSend(queueMCP230x7_Output, &dataOutput_32t, portMAX_DELAY);
+                dataOutputLast_32t = dataOutput_32t;
+                //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "dataOutput_32t=0x%08X\n", dataOutput_32t);
+            }
+            dataInput_8t = 0;
+            for (uint8_t i = 0; i < 4; i++)
+            {
+                dataInput_8t += ((!digitalRead(pinInput[i])) ? 1 << i : 0);
+            }
+            if (dataInputLast_8t != dataInput_8t)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "輸入:%02x!\n", dataInput_8t);
+                dataInputLast_8t = dataInput_8t;
+            }
+        }
+        //[ ]遊戲流程
+        switch (stepGame)
+        {
+        case _Reset:
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+            doc["I2S"]["name"] = "";
+            xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+            for (uint8_t i = 0; i < 6; i++)
+                dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Lingth[i]);
+
+            dataOutput_32t = dataOutput_32t & (~pin_Output_Finish);
+
+            first = true;
+            stepGame++;
+        }
+        break;
+        case _Start:
+        {
+            static uint8_t checkNum = 0, lastCheckNum = 0;
+            static bool suond = false;
+
+            if (first)
+            {
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                first = false;
+                checkNum = 0;
+                lastCheckNum = 0;
+            }
+            // 讀取技能石狀態
+            checkNum = 0;
+            for (uint8_t i = 0; i < 6; i++)
+            {
+                if (dataInput_32t & pinMCP_Input_SkillStone[i])
+                {
+                    checkNum++;
+                    //_CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "i=%d,test=%d\n", i, pinMCP_Output_Lingth[i]);
+                    // 一階技能石直接點亮
+                    if ((i == 0 || i == 2 || i == 4))
+                        dataOutput_32t = dataOutput_32t | pinMCP_Output_Lingth[i];
+                    // 二階技能石需先點亮一階
+                    else if (dataInput_32t & pinMCP_Input_SkillStone[i - 1])
+                        dataOutput_32t = dataOutput_32t | pinMCP_Output_Lingth[i];
+                    else
+                        dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Lingth[i]);
+                }
+                else
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Lingth[i]);
+            }
+
+            // 若新放上去技能石則發出音效
+            if (checkNum > lastCheckNum)
+            {
+                doc["I2S"]["name"] = "/mp3/流亡_踩地板.mp3";
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+            }
+            if (checkNum != lastCheckNum)
+                suond = false;
+            if (checkNum == 6)
+            {
+
+                if (!suond)
+                {
+                    suond = true;
+                    doc["I2S"]["name"] = "/mp3/奇術_蜘蛛門開.mp3";
+                    xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                }
+                dataOutput_32t = dataOutput_32t | pin_Output_Finish;
+                // first = true;
+                // stepGame++;
+            }
+            else
+                dataOutput_32t = dataOutput_32t & (~pin_Output_Finish);
+            lastCheckNum = checkNum;
+        }
+        break;
+        case _OtherMode:
+            if (first)
+            {
+                first=false;
+                _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "遊戲流程%d\n", stepGame);
+                doc["I2S"]["name"] = "";
+                xQueueSend(queuePCM5102, &ptrDoc, portMAX_DELAY);
+                for (uint8_t i = 0; i < 6; i++)
+                    dataOutput_32t = dataOutput_32t & (~pinMCP_Output_Lingth[i]);
+                dataOutput_32t = dataOutput_32t & (~pin_Output_Finish);
+            }
+            break;
+        case _DEBUG:
+        {
+            _CONSOLE_PRINTF(_PRINT_LEVEL_INFO, "DEBUG END!\n");
+            // stepGame = _Reset;
+        }
+        break;
+
+        default:
+            break;
+        }
+        //[ ]模式判斷
+        // 若是流亡模式
+        if (((~dataInput_32t) & pin_Input_Mode) && stepGame != _OtherMode)
+        {
+            stepGame = _OtherMode;
+            first = true;
+        }
+        // 若是奇術模式
+        else if ((dataInput_32t & pin_Input_Mode) && stepGame == _OtherMode)
+        {
+            stepGame = _Reset;
+            first = true;
+        }
         dataInputLast_32t = dataInput_32t;
 
         _DELAY_MS(100);

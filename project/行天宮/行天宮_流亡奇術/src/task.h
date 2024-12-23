@@ -75,5 +75,6 @@ enum mcpOutputRegister_e
 
 void FloorMechanism(void *pvParam);
 void Dialla(void *pvParam);
+void FalseSun(void *pvParam);
 
 #endif

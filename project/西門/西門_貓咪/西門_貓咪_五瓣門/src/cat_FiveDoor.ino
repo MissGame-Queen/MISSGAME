@@ -201,10 +201,8 @@ void loop()
   case Standby:
   {
     uint8_t num = 0;
-    // 逐個讀取每個磁簧
     for (uint8_t i = 0; i < sizeof(pinfragments); i++)
     {
-      // 若檢測到磁簧則對應區塊亮黃底並計數+1
       if (!digitalRead(pinfragments[i]))
       {
         num++;
@@ -218,10 +216,8 @@ void loop()
           pixels.setPixelColor(i * 24 + j, 0);
       }
     }
-    // 若磁簧數量有所變化
     if (num != lastnum)
     {
-      // 且是放上去而不是拿下來就播放音效
       if (num > lastnum)
       {
         /*
@@ -234,12 +230,11 @@ void loop()
          myDFPlayer.disableLoop();
          myDFPlayer.stop();
          */
-        myDFPlayer.play(1);
+         myDFPlayer.play(1);
       }
       lastnum = num;
       Serial.println(num);
     }
-    // 若全部磁簧都有訊號則判斷完成
     if (num == sizeof(pinfragments))
     {
       status++;
@@ -254,12 +249,10 @@ void loop()
   }
   case Start:
   {
-    // 七彩旋轉效果
     for (uint16_t i = 0; i < pixels.numPixels(); i++)
     {
       pixels.setPixelColor(i, setRainbowRGB(map((i + map(millis() % 2000, 0, 2000, 0, pixels.numPixels())) % pixels.numPixels(), 0, pixels.numPixels(), 1, 1535)));
     }
-    // 全黃底效果
     if (millis() > timer + 11500)
     {
       for (uint16_t i = 0; i < pixels.numPixels(); i++)
